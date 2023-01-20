@@ -1,0 +1,25 @@
+[project]
+name = "monmodel"
+dynamic = ['version']
+requires-python = ">=3.9"
+
+[options]
+package_dir = 'src'
+
+[options.packages.find]
+where = 'src'
+
+# This section is mandatory and may be blindly copy/pasted
+[build-system]
+requires = ['vulcan-py']
+build-backend = "vulcan.build_backend"
+
+[tool.vulcan.dev-dependencies.test]
+pytest=""
+coverage=""
+pytest-asyncio=""
+
+[tool.vulcan.dev-dependencies.static-analysis]
+flake8=""
+mypy=""
+types-dataclasses=""

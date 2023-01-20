@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<node
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+xsi:noNamespaceSchemaLocation="model.xsd"
+>
+    <name>Test Dashboard</name>
+    <scrape>http://asddds:8088</scrape>
+    <alert-defaults>
+        <wait>1m</wait>
+        <repeat>4h</repeat>
+    </alert-defaults>
+    <template-values>
+        <add><sys_title>System A</sys_title><sys_id>sys_a</sys_id><sys_range><![CDATA[ > 100 ]]></sys_range></add>
+        <add><sys_title>System B</sys_title><sys_id>sys_b</sys_id><sys_range><![CDATA[ > 200 ]]></sys_range></add>
+    </template-values>
+    <template>
+        <name>%sys_title% overview</name>
+        <link>
+            <text>wiki page</text>
+            <href>https://asd.com/</href>
+        </link>
+        <mlink>
+            <text>Other teams view</text>
+            <id>Other System A</id>
+        </mlink>
+        <query><![CDATA[promql_query{env=prod}]]></query>
+        <record>valid_name_with_labels{label_name_0="v1",label_name_1="%sys_id%"}</record>
+        <display>graph</display>
+        <threshold>
+            <alert>
+                <name>dla</name>
+                <text>bla is experiencing dla with %sys_title%</text>
+                <wait>1m</wait>
+                <repeat>2h</repeat>
+                <channel>Team1</channel>
+                <channel>Team2</channel>
+            </alert>
+            <range>%sys_range%</range>
+            <weight>1.0</weight>
+        </threshold>
+        <grafana-properties-json></grafana-properties-json>
+        <node>
+            <name>%sys_id% details</name>
+            <metric>
+                <node>
+                    <name></name>
+                </node>
+            </metric>
+            <!-- child node -->
+        </node>
+    </template>
+</node>
+
