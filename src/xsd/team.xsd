@@ -1,0 +1,29 @@
+<?xml version="1.1"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:complexType name="Team">
+        <xs:all>
+            <xs:element type="xs:string" name="name" minOccurs="1" maxOccurs="1"/>
+            <xs:element name="channels">
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:element name="add">
+                            <xs:complexType>
+                                <xs:all>
+                                    <xs:element name="type" type="xs:string" minOccurs="1" maxOccurs="1"/>
+                                    <xs:element name="addresses">
+                                        <xs:complexType>
+                                            <xs:sequence>
+                                                <xs:element name="add" type="xs:string" />
+                                            </xs:sequence>
+                                        </xs:complexType>
+                                    </xs:element>
+                                </xs:all>
+                            </xs:complexType>
+                        </xs:element>
+                    </xs:sequence>
+                </xs:complexType>
+            </xs:element>
+        </xs:all>
+    </xs:complexType>
+    <xs:element name="team" type="Team" />
+</xs:schema>

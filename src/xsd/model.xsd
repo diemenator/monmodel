@@ -1,0 +1,233 @@
+<?xml version="1.1"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:simpleType name="Duration">
+        <xs:restriction base="xs:string">
+            <xs:pattern value="^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:complexType name="AlertDefaults">
+        <xs:all>
+            <xs:element type="Duration" name="wait" minOccurs="0" maxOccurs="1"/>
+            <xs:element type="Duration" name="repeat" minOccurs="0" maxOccurs="1"/>
+        </xs:all>
+    </xs:complexType>
+    <xs:complexType name="TemplateValues">
+        <xs:sequence>
+            <xs:annotation>
+                <xs:documentation><![CDATA[
+                a list of template invocation arguments
+                ]]></xs:documentation>
+            </xs:annotation>
+            <xs:element name="add" minOccurs="0" maxOccurs="unbounded">
+                <xs:annotation>
+                    <xs:documentation>arbitrary elements</xs:documentation>
+                </xs:annotation>
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:any maxOccurs="unbounded" minOccurs="0"></xs:any>
+                    </xs:sequence>
+                    <xs:assert test="not(*/*)"/>
+                    <xs:assert test="every $child in * satisfies ($child[(len(string(.)) > 0) and ])"/>
+                </xs:complexType>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:complexType name="Threshold">
+        <xs:annotation>
+            <xs:documentation><![CDATA[
+                - configures displayed thresholds (sometimes value->color mapping in grafana panel, depending on */metric/display) on a metric's panel
+                - when metric is within specified range, threshold's weight is added into aggregated threshold breaches metric
+            ]]></xs:documentation>
+        </xs:annotation>
+        <xs:all>
+            <xs:element type="xs:string" name="range" minOccurs="1" maxOccurs="1">
+            </xs:element>
+            <xs:element name="alert" type="Alert" minOccurs="0" maxOccurs="1">
+            </xs:element>
+            <xs:element type="xs:float" name="weight" minOccurs="0" maxOccurs="1">
+            </xs:element>
+        </xs:all>
+    </xs:complexType>
+    <xs:complexType name="Link">
+        <xs:all>
+            <xs:element type="xs:string" name="text" minOccurs="1" maxOccurs="1">
+                <xs:annotation>
+                    <xs:documentation>this specifies link text</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element type="xs:anyURI" name="value" minOccurs="1" maxOccurs="1">
+                <xs:annotation>
+                    <xs:documentation>this renders a link. to reference another model, specify model://{project}/{model-name} uri</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+        </xs:all>
+    </xs:complexType>
+    <xs:complexType name="Alert">
+        <xs:all>
+            <xs:element type="Duration" name="wait" minOccurs="0" maxOccurs="1"/>
+            <xs:element type="Duration" name="repeat" minOccurs="0" maxOccurs="1"/>
+            <xs:element type="xs:string" name="name" minOccurs="1">
+                <xs:annotation>
+                    <xs:documentation>optional if alert-defaults is defined</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element type="xs:string" name="text" minOccurs="1">
+                <xs:annotation>
+                    <xs:documentation>this appears as alert text body</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="teams" minOccurs="1" maxOccurs="1" >
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:element type="xs:string" name="add" minOccurs="1" maxOccurs="unbounded">
+                            <xs:annotation>
+                                <xs:documentation>This specifies a name of responsible team.</xs:documentation>
+                            </xs:annotation>
+                        </xs:element>
+                    </xs:sequence>
+                </xs:complexType>
+            </xs:element>
+        </xs:all>
+    </xs:complexType>
+    <xs:complexType name="Metric">
+        <xs:annotation>
+            <xs:documentation>
+                <![CDATA[
+                    this adds a grafana panel dashboard and sets up a thresholds breach metric
+                ]]>
+            </xs:documentation>
+        </xs:annotation>
+        <xs:all>
+            <xs:element type="xs:string" name="name" minOccurs="0">
+                <xs:annotation>
+                    <xs:documentation>servers as grafana panel title
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="links" minOccurs="0">
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:element name="add" minOccurs="0" maxOccurs="unbounded" type="Link">
+                        </xs:element>
+                    </xs:sequence>
+                </xs:complexType>
+            </xs:element>
+            <xs:element type="xs:string" name="query" minOccurs="0">
+                <xs:annotation>
+                    <xs:documentation>promql query</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element type="xs:string" name="display" minOccurs="0">
+                <xs:annotation>
+                    <xs:documentation>
+                        grafana panel type: discrete, graph, heatmap, etc...
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element type="xs:string" name="legend" minOccurs="0">
+                <xs:annotation>
+                    <xs:documentation>
+                        grafana panel legend, supports prometheus's {{label_name}} formatting
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element type="xs:string" name="record" minOccurs="0" maxOccurs="1">
+                <xs:annotation>
+                    <xs:documentation><![CDATA[
+                    overrides recorded metric name for aggregation
+                    ]]></xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="thresholds" minOccurs="0" maxOccurs="1">
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:element name="add" type="Threshold" minOccurs="0" maxOccurs="1"/>
+                    </xs:sequence>
+                </xs:complexType>
+            </xs:element>
+            <xs:element type="xs:string" name="grafana-properties-json" minOccurs="0" maxOccurs="1">
+                <xs:annotation>
+                    <xs:documentation>if some tweaking is in order</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="children" minOccurs="0" maxOccurs="1">
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:element type="Model" name="add" minOccurs="0" maxOccurs="1">
+                            <xs:annotation>
+                                <xs:documentation><![CDATA[
+                                    represents child model node
+                                    - becomes a link to another dashboard in grafana or external link
+                                    - creates a recording rule for metric, specified in 'model/metric/record'
+                                ]]> </xs:documentation>
+                            </xs:annotation>
+                        </xs:element>
+                    </xs:sequence>
+                </xs:complexType>
+            </xs:element>
+        </xs:all>
+    </xs:complexType>
+    <xs:complexType name="Model">
+        <xs:all>
+            <xs:annotation>
+                <xs:documentation><![CDATA[
+                the monitoring/health model
+                translates into
+                - grafana dashboard
+                - recording rule for aggregated threshold breaches metric
+                ]]>
+                </xs:documentation>
+            </xs:annotation>
+            <xs:element type="xs:string" name="name" minOccurs="1" maxOccurs="1">
+                <xs:annotation>
+                    <xs:documentation>this becomes 'x-project-name' label value for every recorded metric
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element type="xs:string" name="id" minOccurs="0" maxOccurs="1">
+                <xs:annotation>
+                    <xs:documentation>this becomes a dashboard id, available to mlink
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="alert-defaults" type="AlertDefaults" maxOccurs="1" minOccurs="0"/>
+            <xs:element name="template-values" type="TemplateValues" maxOccurs="1" minOccurs="0"/>
+            <xs:element name="scrape-targets" minOccurs="0" maxOccurs="1">
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:element type="xs:anyURI" name="add" maxOccurs="unbounded" minOccurs="0">
+                            <xs:annotation>
+                                <xs:documentation>
+                                    <![CDATA[
+                                        this is a scrape target host:port
+                                        that goes straight into prometheus configuration
+                                    ]]>
+                                </xs:documentation>
+                            </xs:annotation>
+                        </xs:element>
+                    </xs:sequence>
+                </xs:complexType>
+            </xs:element>
+            <xs:element name="metrics" minOccurs="0" maxOccurs="1">
+
+                <xs:complexType>
+
+                    <xs:sequence>
+                        <xs:element type="Metric" name="add" minOccurs="0" maxOccurs="unbounded">
+                        </xs:element>
+
+                    </xs:sequence>
+                </xs:complexType>
+            </xs:element>
+            <xs:element name="template-metrics" minOccurs="0" maxOccurs="1">
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:element type="Metric" name="add" minOccurs="0" maxOccurs="unbounded">
+                        </xs:element>
+                    </xs:sequence>
+                </xs:complexType>
+            </xs:element>
+        </xs:all>
+    </xs:complexType>
+    <xs:element name="model" type="Model" />
+</xs:schema>

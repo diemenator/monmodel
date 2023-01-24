@@ -1,6 +1,6 @@
 [project]
 name = "monmodel"
-dynamic = ['version']
+dynamic = ['version','dependencies']
 requires-python = ">=3.9"
 
 [options]
@@ -19,7 +19,14 @@ pytest=""
 coverage=""
 pytest-asyncio=""
 
+[version]
+file="src/VERSION.txt"
+
+
 [tool.vulcan.dev-dependencies.static-analysis]
 flake8=""
 mypy=""
 types-dataclasses=""
+
+[tool.vulcan.dependencies]
+PyXB = "~=1.2"

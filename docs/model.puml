@@ -1,0 +1,25 @@
+@startyaml
+Model:
+  id: model / dashboard id
+  name: name / dashboard title
+  "alert-defaults":
+      wait: 10m
+      repeat: 4h
+  template-values:
+  - name: Anubis
+    value: anubis
+  - name: Rah
+    value: rah
+  scrape-targets:
+  - "telegraf.domain.local:9573"
+  - "database.domain.local:9573"
+  template-metrics:
+  - name: metric1
+    children:
+    - name: "metric1 %name% / child dashboard"
+      metrics:
+      - name: %name% metric1
+        query: 'some_prom_metric1{deity="%name%"}'
+      - name: %name% metric2
+        query: 'some_prom_metric2{deity="%name%"}'
+@endyaml
