@@ -150,20 +150,14 @@
                     <xs:documentation>if some tweaking is in order</xs:documentation>
                 </xs:annotation>
             </xs:element>
-            <xs:element name="children" minOccurs="0" maxOccurs="1">
-                <xs:complexType>
-                    <xs:sequence>
-                        <xs:element type="Model" name="add" minOccurs="0" maxOccurs="1">
-                            <xs:annotation>
-                                <xs:documentation><![CDATA[
-                                    represents child model node
-                                    - becomes a link to another dashboard in grafana or external link
-                                    - creates a recording rule for metric, specified in 'model/metric/record'
-                                ]]> </xs:documentation>
-                            </xs:annotation>
-                        </xs:element>
-                    </xs:sequence>
-                </xs:complexType>
+            <xs:element type="Model" name="model" minOccurs="0" maxOccurs="1">
+                <xs:annotation>
+                    <xs:documentation><![CDATA[
+                        represents child model node
+                        - becomes a link to another dashboard in grafana or external link
+                        - creates a recording rule for metric, specified in 'model/metric/record'
+                    ]]> </xs:documentation>
+                </xs:annotation>
             </xs:element>
         </xs:all>
     </xs:complexType>

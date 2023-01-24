@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <model
-xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-xsi:noNamespaceSchemaLocation="src/xsd/model.xsd"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="src/xsd/model.xsd"
 >
     <name>Test Dashboard</name>
     <scrape-targets>
@@ -12,8 +12,16 @@ xsi:noNamespaceSchemaLocation="src/xsd/model.xsd"
         <repeat>4h</repeat>
     </alert-defaults>
     <template-values>
-        <add><sys_title>System A</sys_title><sys_id>sys_a</sys_id><sys_range><![CDATA[ > 100 ]]></sys_range></add>
-        <add><sys_title>System B</sys_title><sys_id>sys_b</sys_id><sys_range><![CDATA[ > 200 ]]></sys_range></add>
+        <add>
+            <sys_title>System A</sys_title>
+            <sys_id>sys_a</sys_id>
+            <sys_range><![CDATA[ > 100 ]]></sys_range>
+        </add>
+        <add>
+            <sys_title>System B</sys_title>
+            <sys_id>sys_b</sys_id>
+            <sys_range><![CDATA[ > 200 ]]></sys_range>
+        </add>
     </template-values>
     <metrics>
         <add>
@@ -70,36 +78,36 @@ xsi:noNamespaceSchemaLocation="src/xsd/model.xsd"
                     <weight>1.0</weight>
                 </add>
             </thresholds>
-            <children>
-                <add>
-                    <name>%sys_id% details</name>
-                    <template-metrics>
-                        <add>
-                            <name>%sys_id% metric</name>
-                            <display>graph</display>
-                            <legend>host: {{host}}, path: {{path}}</legend>
-                            <query>max(another_subsystem_http_api_duration{sub_id="%sys_id%",path=~"/api/.+"}) by (host,path)</query>
-                            <thresholds>
-                                <add>
-                                    <range><![CDATA[ > 1000 ]]></range>
-                                </add>
-                            </thresholds>
-                        </add>
-                        <add>
-                            <name>%sys_id% metric2</name>
-                            <display>hidden</display>
-                            <query>max(another_subsystem_http_api_duration{sub_id="%sys_id%",path=~"/api/.+"})</query>
-                            <thresholds>
-                                <add>
-                                    <range><![CDATA[ > 200 and < 1000 ]]></range>
-                                    <weight>1.0</weight>
-                                </add>
-                            </thresholds>
-                        </add>
-                    </template-metrics>
-                    <!-- child node -->
-                </add>
-            </children>
+            <model>
+                <name>%sys_id% details</name>
+                <template-metrics>
+                    <add>
+                        <name>%sys_id% metric</name>
+                        <display>graph</display>
+                        <legend>host: {{host}}, path: {{path}}</legend>
+                        <query>max(another_subsystem_http_api_duration{sub_id="%sys_id%",path=~"/api/.+"}) by
+                            (host,path)
+                        </query>
+                        <thresholds>
+                            <add>
+                                <range><![CDATA[ > 1000 ]]></range>
+                            </add>
+                        </thresholds>
+                    </add>
+                    <add>
+                        <name>%sys_id% metric2</name>
+                        <display>hidden</display>
+                        <query>max(another_subsystem_http_api_duration{sub_id="%sys_id%",path=~"/api/.+"})</query>
+                        <thresholds>
+                            <add>
+                                <range><![CDATA[ > 200 and < 1000 ]]></range>
+                                <weight>1.0</weight>
+                            </add>
+                        </thresholds>
+                    </add>
+                </template-metrics>
+                <!-- child node -->
+            </model>
         </add>
     </template-metrics>
 </model>
