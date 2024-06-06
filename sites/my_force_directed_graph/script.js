@@ -1,10 +1,29 @@
 const width = window.innerWidth;
 const height = window.innerHeight;
 
+// Set up Three.js scene
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+camera.position.z = 200;
+
+const renderer = new THREE.WebGLRenderer();
+renderer.setSize(width, height);
+document.body.appendChild(renderer.domElement);
+
+// Skybox
+const skyboxGeometry = new THREE.BoxGeometry(1000, 1000, 1000);
+const skyboxMaterial = new THREE.MeshBasicMaterial({ color: 0x87CEEB, side: THREE.BackSide });
+const skybox = new THREE.Mesh(skyboxGeometry, skyboxMaterial);
+scene.add(skybox);
+
+// D3 force-directed graph setup
 const svg = d3.select("body")
   .append("svg")
   .attr("width", width)
-  .attr("height", height);
+  .attr("height", height)
+  .style("position", "absolute")
+  .style("top", 0)
+  .style("left", 0);
 
 // Tooltip div
 const tooltip = d3.select("body")
@@ -15,7 +34,6 @@ const numNodes = 10;
 const nodes = d3.range(numNodes).map((d, i) => ({
   id: i,
   health: Math.random() * 100,
-  // Add rich content for each node
   richContent: `
     <div>
       <h2>Node ${i}</h2>
@@ -187,3 +205,16 @@ function drag(simulation) {
     .on("drag", dragged)
     .on("end", dragended);
 }
+
+// Animate and render the Three.js scene
+function animate() {
+  requestAnimationFrame(animate);
+  // Subtle camera panning
+  camera.position.x = 200 * Math.sin(Date.now() * 0.0001);
+  camera.position.z = 200 * Math.cos(Date.now() * 0.0001);
+  camera.lookAt(scene.position);
+  renderer.render(scene, camera);
+}
+
+// Start animation
+animate();
