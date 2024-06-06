@@ -136,6 +136,32 @@ fetch('graph.json')
       return { ...link, line };
     });
 
+    // Function to handle node selection
+    function handleNodeSelection(event) {
+      event.preventDefault();
+
+      // Calculate mouse position in normalized device coordinates
+      mouse.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1;
+      mouse.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1;
+
+      // Update raycaster
+      raycaster.setFromCamera(mouse, camera);
+
+      // Get the intersection point with the node
+      const intersects = raycaster.intersectObjects(nodes3D.map(node => node.mesh));
+
+      // If there is an intersection, select the corresponding node
+      if (intersects.length > 0) {
+        const selectedNode = nodes3D.find(node => node.mesh === intersects[0].object);
+        selectObject(selectedNode);
+      } else {
+        selectObject(null);
+      }
+    }
+
+    // Add event listener for mouse click
+    document.addEventListener('click', handleNodeSelection, false);
+
     // Function to update positions of nodes and links
     function updateGraph() {
       nodes3D.forEach(node => {
@@ -204,34 +230,6 @@ function selectObject(object) {
 // Define raycaster for mouse interactions
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
-
-
-// Function to handle node selection
-function handleNodeSelection(event) {
-  event.preventDefault();
-
-  // Calculate mouse position in normalized device coordinates
-  mouse.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1;
-  mouse.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1;
-
-  // Update raycaster
-  raycaster.setFromCamera(mouse, camera);
-
-  // Get the intersection point with the node
-  const intersects = raycaster.intersectObjects(nodes3D.map(node => node.mesh));
-
-  // If there is an intersection, select the corresponding node
-  if (intersects.length > 0) {
-    const selectedNode = nodes3D.find(node => node.mesh === intersects[0].object);
-    selectObject(selectedNode);
-  } else {
-    selectObject(null);
-  }
-}
-
-// Add event listener for mouse click
-document.addEventListener('click', handleNodeSelection, false);
-
 
 // Start animation
 animate();
