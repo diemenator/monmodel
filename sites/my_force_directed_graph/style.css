@@ -2,3 +2,17 @@ body {
   margin: 0;
   overflow: hidden;
 }
+
+.node-label, .link-label {
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  fill: #000;
+}
+
+.health-bar-bg {
+  fill: #ddd;
+}
+
+.health-bar-fg {
+  fill: #00f;
+}
