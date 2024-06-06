@@ -8,19 +8,12 @@ camera.position.z = 200;
 
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize(width, height);
+document.body.style.margin = 0;
+document.body.style.overflow = 'hidden';
 document.body.appendChild(renderer.domElement);
 
-// Load skybox texture
-const loader = new THREE.CubeTextureLoader();
-const skyboxTexture = loader.load([
-  'path/to/skybox/px.jpg',
-  'path/to/skybox/nx.jpg',
-  'path/to/skybox/py.jpg',
-  'path/to/skybox/ny.jpg',
-  'path/to/skybox/pz.jpg',
-  'path/to/skybox/nz.jpg'
-]);
-scene.background = skyboxTexture;
+// Set background color to black
+scene.background = new THREE.Color(0x000000);
 
 // Add particles
 const particleCount = 1000;
@@ -39,23 +32,13 @@ const particleMaterial = new THREE.PointsMaterial({ color: 0x888888 });
 const particleSystem = new THREE.Points(particles, particleMaterial);
 scene.add(particleSystem);
 
-// D3 force-directed graph setup
-const svg = d3.select("body")
-  .append("svg")
-  .attr("width", width)
-  .attr("height", height)
-  .style("position", "absolute")
-  .style("top", 0)
-  .style("left", 0);
-
-// Tooltip div
-const tooltip = d3.select("body")
-  .append("div")
-  .attr("class", "tooltip");
-
+// Graph setup
 const numNodes = 10;
 const nodes = d3.range(numNodes).map((d, i) => ({
   id: i,
+  x: Math.random() * 100 - 50,
+  y: Math.random() * 100 - 50,
+  z: Math.random() * 100 - 50,
   health: Math.random() * 100,
   richContent: `
     <div>
@@ -77,157 +60,74 @@ const nodes = d3.range(numNodes).map((d, i) => ({
 }));
 const links = d3.range(numNodes - 1).map((d, i) => ({ source: i, target: i + 1, health: Math.random() * 100 }));
 
-const simulation = d3.forceSimulation(nodes)
-  .force("link", d3.forceLink(links).distance(50).strength(1))
-  .force("charge", d3.forceManyBody().strength(-300))
-  .force("center", d3.forceCenter(width / 2, height / 2))
-  .on("tick", ticked);
+// Create 3D nodes and links
+const nodeGeometry = new THREE.SphereGeometry(5, 32, 32);
+const nodeMaterial = new THREE.MeshBasicMaterial({ color: 0xff6347 }); // Tomato red color for nodes
 
-const link = svg.append("g")
-  .selectAll("line")
-  .data(links)
-  .enter()
-  .append("line")
-  .attr("stroke", "#999")
-  .attr("stroke-width", 2);
+const nodes3D = nodes.map(node => {
+  const mesh = new THREE.Mesh(nodeGeometry, nodeMaterial.clone());
+  mesh.position.set(node.x, node.y, node.z);
+  scene.add(mesh);
+  return { ...node, mesh };
+});
 
-const linkLabels = svg.append("g")
-  .selectAll(".link-label")
-  .data(links)
-  .enter()
-  .append("text")
-  .attr("class", "link-label")
-  .attr("dy", -3)
-  .text(d => `Health: ${d.health.toFixed(1)}`);
+const linkMaterial = new THREE.LineBasicMaterial({ color: 0x1e90ff }); // Dodger blue color for links
+const links3D = links.map(link => {
+  const positions = new Float32Array(6);
+  const lineGeometry = new THREE.BufferGeometry();
+  lineGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const line = new THREE.Line(lineGeometry, linkMaterial.clone());
+  scene.add(line);
+  return { ...link, line };
+});
 
-const linkHealthBarsBg = svg.append("g")
-  .selectAll(".link-health-bar-bg")
-  .data(links)
-  .enter()
-  .append("rect")
-  .attr("class", "health-bar-bg")
-  .attr("width", 50)
-  .attr("height", 5);
+// Tooltip div
+const tooltip = d3.select("body")
+  .append("div")
+  .attr("class", "tooltip")
+  .style("color", "#ffffff")
+  .style("background-color", "#333333");
 
-const linkHealthBarsFg = svg.append("g")
-  .selectAll(".link-health-bar-fg")
-  .data(links)
-  .enter()
-  .append("rect")
-  .attr("class", "health-bar-fg")
-  .attr("width", d => (d.health / 100) * 50)
-  .attr("height", 5);
+// SVG HUD
+const svg = d3.select("body")
+  .append("svg")
+  .attr("width", width)
+  .attr("height", height)
+  .style("position", "absolute")
+  .style("top", 0)
+  .style("left", 0);
 
-const node = svg.append("g")
-  .selectAll("circle")
-  .data(nodes)
-  .enter()
-  .append("circle")
-  .attr("r", 10)
-  .attr("fill", d => d3.schemeCategory10[d.id % 10])
-  .on("mouseover", (event, d) => {
-    tooltip
-      .html(d.richContent)
-      .style("left", (event.pageX + 10) + "px")
-      .style("top", (event.pageY + 10) + "px")
-      .style("display", "block");
-  })
-  .on("mouseout", () => {
-    tooltip.style("display", "none");
-  })
-  .call(drag(simulation));
+const hud = svg.append("g")
+  .attr("class", "hud");
 
-const nodeLabels = svg.append("g")
-  .selectAll(".node-label")
-  .data(nodes)
-  .enter()
-  .append("text")
-  .attr("class", "node-label")
-  .attr("dy", -15)
-  .text(d => `Node ${d.id}`);
+const selectedText = hud.append("text")
+  .attr("class", "selected-text")
+  .attr("x", 10)
+  .attr("y", 30)
+  .attr("fill", "white")
+  .text("Selected: None");
 
-const nodeHealthBarsBg = svg.append("g")
-  .selectAll(".node-health-bar-bg")
-  .data(nodes)
-  .enter()
-  .append("rect")
-  .attr("class", "health-bar-bg")
-  .attr("width", 50)
-  .attr("height", 5);
+const zoomInButton = hud.append("text")
+  .attr("class", "zoom-button")
+  .attr("x", 10)
+  .attr("y", 60)
+  .attr("fill", "white")
+  .text("Zoom In")
+  .style("cursor", "pointer")
+  .on("click", () => {
+    camera.position.z -= 10;
+  });
 
-const nodeHealthBarsFg = svg.append("g")
-  .selectAll(".node-health-bar-fg")
-  .data(nodes)
-  .enter()
-  .append("rect")
-  .attr("class", "health-bar-fg")
-  .attr("width", d => (d.health / 100) * 50)
-  .attr("height", 5);
-
-node.append("title")
-  .text(d => `Node ${d.id}\nHealth: ${d.health.toFixed(1)}`);
-
-function ticked() {
-  link
-    .attr("x1", d => d.source.x)
-    .attr("y1", d => d.source.y)
-    .attr("x2", d => d.target.x)
-    .attr("y2", d => d.target.y);
-
-  linkLabels
-    .attr("x", d => (d.source.x + d.target.x) / 2)
-    .attr("y", d => (d.source.y + d.target.y) / 2);
-
-  linkHealthBarsBg
-    .attr("x", d => (d.source.x + d.target.x) / 2 - 25)
-    .attr("y", d => (d.source.y + d.target.y) / 2 - 3);
-
-  linkHealthBarsFg
-    .attr("x", d => (d.source.x + d.target.x) / 2 - 25)
-    .attr("y", d => (d.source.y + d.target.y) / 2 - 3)
-    .attr("width", d => (d.health / 100) * 50);
-
-  node
-    .attr("cx", d => d.x)
-    .attr("cy", d => d.y);
-
-  nodeLabels
-    .attr("x", d => d.x)
-    .attr("y", d => d.y);
-
-  nodeHealthBarsBg
-    .attr("x", d => d.x - 25)
-    .attr("y", d => d.y + 12);
-
-  nodeHealthBarsFg
-    .attr("x", d => d.x - 25)
-    .attr("y", d => d.y + 12)
-    .attr("width", d => (d.health / 100) * 50);
-}
-
-function drag(simulation) {
-  function dragstarted(event, d) {
-    if (!event.active) simulation.alphaTarget(0.3).restart();
-    d.fx = d.x;
-    d.fy = d.y;
-  }
-
-  function dragged(event, d) {
-    d.fx = event.x;
-    d.fy = event.y;
-  }
-
-  function dragended(event, d) {
-    if (!event.active) simulation.alphaTarget(0);
-    d.fx = null;
-    d.fy = null;
-  }
-
-  return d3.drag()
-    .on("start", dragstarted)
-    .on("drag", dragged)
-    .on("end", dragended);
-}
+const zoomOutButton = hud.append("text")
+  .attr("class", "zoom-button")
+  .attr("x", 10)
+  .attr("y", 90)
+  .attr("fill", "white")
+  .text("Zoom Out")
+  .style("cursor", "pointer")
+  .on("click", () => {
+    camera.position.z += 10;
+  });
 
 // Track mouse movement for camera panning
 let mouseX = 0, mouseY = 0;
@@ -236,6 +136,58 @@ document.addEventListener('mousemove', (event) => {
   mouseX = (event.clientX / window.innerWidth) * 2 - 1;
   mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
 });
+
+// Add mouse wheel event listener for zooming
+document.addEventListener('wheel', (event) => {
+  const zoomSpeed = 0.1;
+  camera.position.z += event.deltaY * zoomSpeed;
+});
+
+// Function to update positions of nodes and links
+function updateGraph() {
+  nodes3D.forEach(node => {
+    node.mesh.position.set(node.x, node.y, node.z);
+  });
+
+  links3D.forEach(link => {
+    const positions = link.line.geometry.attributes.position.array;
+    positions[0] = nodes[link.source].x;
+    positions[1] = nodes[link.source].y;
+    positions[2] = nodes[link.source].z;
+    positions[3] = nodes[link.target].x;
+    positions[4] = nodes[link.target].y;
+    positions[5] = nodes[link.target].z;
+    link.line.geometry.attributes.position.needsUpdate = true;
+  });
+}
+
+// Function to select a node or edge
+function selectObject(object) {
+  if (object) {
+    selectedText.text(`Selected: ${object.name}`);
+    tooltip.html(object.richContent)
+      .style("left", (event.pageX + 10) + "px")
+      .style("top", (event.pageY + 10) + "px")
+      .style("display", "block");
+  } else {
+    selectedText.text("Selected: None");
+    tooltip.style("display", "none");
+  }
+}
+
+// D3 force-directed graph simulation
+const simulation = d3.forceSimulation(nodes)
+  .force("link", d3.forceLink(links).distance(50).strength(1))
+  .force("charge", d3.forceManyBody().strength(-300))
+  .force("center", d3.forceCenter(0, 0))
+  .on("tick", () => {
+    nodes3D.forEach((node, i) => {
+      node.x = simulation.nodes()[i].x;
+      node.y = simulation.nodes()[i].y;
+      node.z = simulation.nodes()[i].z;
+    });
+    updateGraph();
+  });
 
 // Animate and render the Three.js scene
 function animate() {
