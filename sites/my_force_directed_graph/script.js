@@ -32,55 +32,6 @@ const particleMaterial = new THREE.PointsMaterial({ color: 0x888888 });
 const particleSystem = new THREE.Points(particles, particleMaterial);
 scene.add(particleSystem);
 
-// Graph setup
-const numNodes = 10;
-const nodes = d3.range(numNodes).map((d, i) => ({
-  id: i,
-  x: Math.random() * 100 - 50,
-  y: Math.random() * 100 - 50,
-  z: Math.random() * 100 - 50,
-  health: Math.random() * 100,
-  richContent: `
-    <div>
-      <h2>Node ${i}</h2>
-      <p>This is a detailed description for node ${i}. You can use <strong>HTML</strong> or <em>Markdown</em> here.</p>
-      <img src="https://via.placeholder.com/150" alt="Placeholder Image">
-      <button onclick="alert('Button clicked!')">Click Me</button>
-      <h3>Sample Table</h3>
-      <table>
-        <tr><th>Header 1</th><th>Header 2</th></tr>
-        <tr><td>Data 1</td><td>Data 2</td></tr>
-      </table>
-      <h3>SVG Widget</h3>
-      <svg width="100" height="100">
-        <circle cx="50" cy="50" r="40" fill="blue" />
-      </svg>
-    </div>
-  `
-}));
-const links = d3.range(numNodes - 1).map((d, i) => ({ source: i, target: i + 1, health: Math.random() * 100 }));
-
-// Create 3D nodes and links
-const nodeGeometry = new THREE.SphereGeometry(5, 32, 32);
-const nodeMaterial = new THREE.MeshBasicMaterial({ color: 0xff6347 }); // Tomato red color for nodes
-
-const nodes3D = nodes.map(node => {
-  const mesh = new THREE.Mesh(nodeGeometry, nodeMaterial.clone());
-  mesh.position.set(node.x, node.y, node.z);
-  scene.add(mesh);
-  return { ...node, mesh };
-});
-
-const linkMaterial = new THREE.LineBasicMaterial({ color: 0x1e90ff }); // Dodger blue color for links
-const links3D = links.map(link => {
-  const positions = new Float32Array(6);
-  const lineGeometry = new THREE.BufferGeometry();
-  lineGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  const line = new THREE.Line(lineGeometry, linkMaterial.clone());
-  scene.add(line);
-  return { ...link, line };
-});
-
 // Tooltip div
 const tooltip = d3.select("body")
   .append("div")
@@ -143,24 +94,6 @@ document.addEventListener('wheel', (event) => {
   camera.position.z += event.deltaY * zoomSpeed;
 });
 
-// Function to update positions of nodes and links
-function updateGraph() {
-  nodes3D.forEach(node => {
-    node.mesh.position.set(node.x, node.y, node.z);
-  });
-
-  links3D.forEach(link => {
-    const positions = link.line.geometry.attributes.position.array;
-    positions[0] = nodes[link.source].x;
-    positions[1] = nodes[link.source].y;
-    positions[2] = nodes[link.source].z;
-    positions[3] = nodes[link.target].x;
-    positions[4] = nodes[link.target].y;
-    positions[5] = nodes[link.target].z;
-    link.line.geometry.attributes.position.needsUpdate = true;
-  });
-}
-
 // Function to select a node or edge
 function selectObject(object) {
   if (object) {
@@ -175,18 +108,65 @@ function selectObject(object) {
   }
 }
 
-// D3 force-directed graph simulation
-const simulation = d3.forceSimulation(nodes)
-  .force("link", d3.forceLink(links).distance(50).strength(1))
-  .force("charge", d3.forceManyBody().strength(-300))
-  .force("center", d3.forceCenter(0, 0))
-  .on("tick", () => {
-    nodes3D.forEach((node, i) => {
-      node.x = simulation.nodes()[i].x;
-      node.y = simulation.nodes()[i].y;
-      node.z = simulation.nodes()[i].z;
+// Fetch graph data from JSON file
+fetch('graph.json')
+  .then(response => response.json())
+  .then(data => {
+    const nodes = data.nodes;
+    const links = data.links;
+
+    // Create 3D nodes and links
+    const nodeGeometry = new THREE.SphereGeometry(5, 32, 32);
+    const nodeMaterial = new THREE.MeshBasicMaterial({ color: 0xff6347 }); // Tomato red color for nodes
+
+    const nodes3D = nodes.map(node => {
+      const mesh = new THREE.Mesh(nodeGeometry, nodeMaterial.clone());
+      mesh.position.set(node.x, node.y, node.z);
+      scene.add(mesh);
+      return { ...node, mesh };
     });
-    updateGraph();
+
+    const linkMaterial = new THREE.LineBasicMaterial({ color: 0x1e90ff }); // Dodger blue color for links
+    const links3D = links.map(link => {
+      const positions = new Float32Array(6);
+      const lineGeometry = new THREE.BufferGeometry();
+      lineGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const line = new THREE.Line(lineGeometry, linkMaterial.clone());
+      scene.add(line);
+      return { ...link, line };
+    });
+
+    // Function to update positions of nodes and links
+    function updateGraph() {
+      nodes3D.forEach(node => {
+        node.mesh.position.set(node.x, node.y, node.z);
+      });
+
+      links3D.forEach(link => {
+        const positions = link.line.geometry.attributes.position.array;
+        positions[0] = nodes[link.source].x;
+        positions[1] = nodes[link.source].y;
+        positions[2] = nodes[link.source].z;
+        positions[3] = nodes[link.target].x;
+        positions[4] = nodes[link.target].y;
+        positions[5] = nodes[link.target].z;
+        link.line.geometry.attributes.position.needsUpdate = true;
+      });
+    }
+
+    // D3 force-directed graph simulation
+    const simulation = d3.forceSimulation(nodes)
+      .force("link", d3.forceLink(links).distance(50).strength(1))
+      .force("charge", d3.forceManyBody().strength(-300))
+      .force("center", d3.forceCenter(0, 0))
+      .on("tick", () => {
+        nodes3D.forEach((node, i) => {
+          node.x = simulation.nodes()[i].x;
+          node.y = simulation.nodes()[i].y;
+          node.z = simulation.nodes()[i].z;
+        });
+        updateGraph();
+      });
   });
 
 // Animate and render the Three.js scene
@@ -200,6 +180,58 @@ function animate() {
 
   renderer.render(scene, camera);
 }
+
+// Function to select a node or edge
+function selectObject(object) {
+  if (object) {
+    selectedText.text(`Selected: Node ${object.id}`);
+    tooltip.html(object.richContent)
+      .style("left", (event.pageX + 10) + "px")
+      .style("top", (event.pageY + 10) + "px")
+      .style("display", "block");
+
+    // Update URL hash
+    window.location.hash = `node-${object.id}`;
+  } else {
+    selectedText.text("Selected: None");
+    tooltip.style("display", "none");
+
+    // Clear URL hash
+    history.replaceState({}, document.title, ".");
+  }
+}
+
+// Define raycaster for mouse interactions
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+
+// Function to handle node selection
+function handleNodeSelection(event) {
+  event.preventDefault();
+
+  // Calculate mouse position in normalized device coordinates
+  mouse.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1;
+  mouse.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1;
+
+  // Update raycaster
+  raycaster.setFromCamera(mouse, camera);
+
+  // Get the intersection point with the node
+  const intersects = raycaster.intersectObjects(nodes3D.map(node => node.mesh));
+
+  // If there is an intersection, select the corresponding node
+  if (intersects.length > 0) {
+    const selectedNode = nodes3D.find(node => node.mesh === intersects[0].object);
+    selectObject(selectedNode);
+  } else {
+    selectObject(null);
+  }
+}
+
+// Add event listener for mouse click
+document.addEventListener('click', handleNodeSelection, false);
+
 
 // Start animation
 animate();

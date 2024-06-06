@@ -1,0 +1,11 @@
+{
+  "nodes": [
+    { "id": 0, "x": 10, "y": 10, "z": 10, "health": 90, "richContent": "<div><h2>Node 0</h2><p>Content for node 0</p></div>" },
+    { "id": 1, "x": -20, "y": 20, "z": 20, "health": 80, "richContent": "<div><h2>Node 1</h2><p>Content for node 1</p></div>" },
+    { "id": 2, "x": 30, "y": -30, "z": 30, "health": 70, "richContent": "<div><h2>Node 2</h2><p>Content for node 2</p></div>" }
+  ],
+  "links": [
+    { "source": 0, "target": 1, "health": 100 },
+    { "source": 1, "target": 2, "health": 100 }
+  ]
+}
