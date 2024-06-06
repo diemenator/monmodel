@@ -6,8 +6,34 @@ const svg = d3.select("body")
   .attr("width", width)
   .attr("height", height);
 
+// Tooltip div
+const tooltip = d3.select("body")
+  .append("div")
+  .attr("class", "tooltip");
+
 const numNodes = 10;
-const nodes = d3.range(numNodes).map((d, i) => ({ id: i, health: Math.random() * 100 }));
+const nodes = d3.range(numNodes).map((d, i) => ({
+  id: i,
+  health: Math.random() * 100,
+  // Add rich content for each node
+  richContent: `
+    <div>
+      <h2>Node ${i}</h2>
+      <p>This is a detailed description for node ${i}. You can use <strong>HTML</strong> or <em>Markdown</em> here.</p>
+      <img src="https://via.placeholder.com/150" alt="Placeholder Image">
+      <button onclick="alert('Button clicked!')">Click Me</button>
+      <h3>Sample Table</h3>
+      <table>
+        <tr><th>Header 1</th><th>Header 2</th></tr>
+        <tr><td>Data 1</td><td>Data 2</td></tr>
+      </table>
+      <h3>SVG Widget</h3>
+      <svg width="100" height="100">
+        <circle cx="50" cy="50" r="40" fill="blue" />
+      </svg>
+    </div>
+  `
+}));
 const links = d3.range(numNodes - 1).map((d, i) => ({ source: i, target: i + 1, health: Math.random() * 100 }));
 
 const simulation = d3.forceSimulation(nodes)
@@ -58,6 +84,16 @@ const node = svg.append("g")
   .append("circle")
   .attr("r", 10)
   .attr("fill", d => d3.schemeCategory10[d.id % 10])
+  .on("mouseover", (event, d) => {
+    tooltip
+      .html(d.richContent)
+      .style("left", (event.pageX + 10) + "px")
+      .style("top", (event.pageY + 10) + "px")
+      .style("display", "block");
+  })
+  .on("mouseout", () => {
+    tooltip.style("display", "none");
+  })
   .call(drag(simulation));
 
 const nodeLabels = svg.append("g")

@@ -16,3 +16,37 @@ body {
 .health-bar-fg {
   fill: #00f;
 }
+
+.tooltip {
+  position: absolute;
+  background-color: white;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  padding: 10px;
+  display: none;
+  pointer-events: none;
+  z-index: 10;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+}
+
+.tooltip img {
+  max-width: 100%;
+  height: auto;
+}
+
+.tooltip table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tooltip table, .tooltip th, .tooltip td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+
+.tooltip th {
+  background-color: #f2f2f2;
+}
