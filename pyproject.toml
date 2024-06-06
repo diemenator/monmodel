@@ -1,27 +1,29 @@
 [project]
 name = "monmodel"
 dynamic = ['version','dependencies']
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 
-[options]
-package_dir = 'src'
-
-[options.packages.find]
-where = 'src'
-
-# This section is mandatory and may be blindly copy/pasted
 [build-system]
 requires = ['vulcan-py']
 build-backend = "vulcan.build_backend"
+
+[tool.vulcan]
+packages = ["prometheus_configuration_py", "swagger_server", "tests"]
+package_dir = {"" = "src"}
+# [options.packages.find]
+# where = 'src'
+# namespaces = false
+# exclude = ['openapi*', 'grafana', 'prometheus_image*', '*_image']
 
 [tool.vulcan.dev-dependencies.test]
 pytest=""
 coverage=""
 pytest-asyncio=""
+#[version]
+#file="src/VERSION.txt"
 
-[version]
-file="src/VERSION.txt"
-
+# [project.scripts]  # OPTIONAL
+# entry_point="monmodel.swagger_server.cli:main"
 
 [tool.vulcan.dev-dependencies.static-analysis]
 flake8=""
@@ -29,4 +31,101 @@ mypy=""
 types-dataclasses=""
 
 [tool.vulcan.dependencies]
-PyXB = "~=1.2"
+
+PyXB = ""
+tox = ""
+generateds = ""
+connexion = ""
+"connexion[swagger-ui]" = ""
+python_dateutil = ""
+setuptools = ""
+swagger-ui-bundle = ""
+randomize = ""
+coverage = ""
+flask_testing = ""
+pyyaml = ""
+
+[tool.tox]
+legacy_tox_ini = """
+[tox]
+envlist =
+    fix
+    type
+    py39
+    readme
+    docs
+isolated_build = true
+skip_missing_interpreters = true
+minversion = 3.14
+
+[testenv]
+description = run the unit tests with pytest under {basepython}
+setenv =
+    COVERAGE_FILE = {toxworkdir}/.coverage.{envname}
+    COVERAGE_PROCESS_START = {toxinidir}/setup.cfg
+    _COVERAGE_SRC = {envsitepackagesdir}/sphinx_argparse_cli
+extras =
+    test
+commands =
+    python -m pytest {tty:--color=yes} {posargs: \
+      --junitxml {toxworkdir}{/}junit.{envname}.xml --cov {envsitepackagesdir}{/}pyproject_fmt \
+      --cov {toxinidir}{/}tests --cov-fail-under=100 \
+      --cov-config=pyproject.toml --no-cov-on-fail --cov-report term-missing:skip-covered --cov-context=test \
+      --cov-report html:{envtmpdir}{/}htmlcov --cov-report xml:{toxworkdir}{/}coverage.{envname}.xml \
+      tests}
+package = wheel
+wheel_build_env = .pkg
+
+[testenv:fix]
+description = run static analysis and style check using flake8
+passenv =
+    HOMEPATH
+    PROGRAMDATA
+skip_install = true
+deps =
+    pre-commit>=2.20
+commands =
+    pre-commit run --all-files --show-diff-on-failure
+    python -c 'print("hint: run {envdir}/bin/pre-commit install to add checks as pre-commit hook")'
+
+[testenv:type]
+description = run type check on code base
+setenv =
+    {tty:MYPY_FORCE_COLOR = 1}
+deps =
+    mypy==0.982
+commands =
+    mypy --strict --python-version 3.10 src tests
+
+[testenv:readme]
+description = check that the long description is valid
+skip_install = true
+deps =
+    build[virtualenv]>=0.9
+    twine>=4.0.1
+commands =
+    python -m build --sdist --wheel -o {envtmpdir} .
+    twine check {envtmpdir}/*
+
+[testenv:docs]
+description = build documentation
+extras =
+    docs
+commands =
+    sphinx-build -d "{envtmpdir}{/}doctree" docs "{toxworkdir}{/}docs_out" --color -b html {posargs}
+    python -c 'print(r"documentation available under file://{toxworkdir}{/}docs_out{/}index.html")'
+
+[testenv:dev]
+description = generate a DEV environment
+usedevelop = true
+extras =
+    docs
+    test
+commands =
+    python -m pip list --format=columns
+    python -c 'import sys; print(sys.executable)'
+
+[flake8]
+max-complexity = 22
+max-line-length = 120
+"""

@@ -1,0 +1,155 @@
+openapi: 3.0.3
+info:
+  title: MonModel - OpenAPI 3.0
+  description: This is a monitoring model manipulation service OpenAPI 3.0 specification.
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  version: 1.0.11
+servers:
+- url: /
+paths:
+  /model:
+    put:
+      summary: Create or update a model
+      operationId: update_model
+      requestBody:
+        content:
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/Model'
+        required: true
+      responses:
+        "200":
+          description: Successful update
+      x-openapi-router-controller: swagger_server.controllers.default_controller
+  /team:
+    put:
+      summary: Create or update a team
+      operationId: update_team
+      requestBody:
+        content:
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/Team'
+        required: true
+      responses:
+        "200":
+          description: Successful update
+      x-openapi-router-controller: swagger_server.controllers.default_controller
+components:
+  schemas:
+    Team:
+      type: object
+      properties:
+        name:
+          type: string
+        channels:
+          type: array
+          items:
+            $ref: '#/components/schemas/Team_channels'
+    Duration:
+      type: string
+      format: duration
+      example: 1h
+    TemplateValues:
+      type: object
+      additionalProperties:
+        type: string
+    AlertDefaults:
+      type: object
+      properties:
+        wait:
+          $ref: '#/components/schemas/Duration'
+        repeat:
+          $ref: '#/components/schemas/Duration'
+    Alert:
+      properties:
+        wait:
+          $ref: '#/components/schemas/Duration'
+        repeat:
+          $ref: '#/components/schemas/Duration'
+        name:
+          type: string
+        text:
+          type: string
+        teams:
+          type: array
+          items:
+            type: string
+    Threshold:
+      type: object
+      properties:
+        range:
+          type: string
+        alert:
+          $ref: '#/components/schemas/Alert'
+        weight:
+          type: number
+    Link:
+      type: object
+      properties:
+        href:
+          type: string
+        text:
+          type: string
+    Metric:
+      type: object
+      properties:
+        name:
+          type: string
+        record:
+          type: string
+        links:
+          type: array
+          items:
+            $ref: '#/components/schemas/Link'
+        query:
+          type: string
+        display:
+          type: string
+        legend:
+          type: string
+        thresholds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Threshold'
+        grafana-properties-json:
+          type: string
+        children:
+          $ref: '#/components/schemas/Model'
+    Model:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        alert-defaults:
+          $ref: '#/components/schemas/AlertDefaults'
+        template-values:
+          type: array
+          items:
+            $ref: '#/components/schemas/TemplateValues'
+        scrape-targets:
+          type: array
+          items:
+            type: string
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/Metric'
+        template-metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/Metric'
+    Team_channels:
+      type: object
+      properties:
+        type:
+          type: string
+        addresses:
+          type: array
+          items:
+            type: string
+

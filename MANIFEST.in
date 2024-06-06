@@ -1,1 +1,7 @@
-vulcan.lock
+recursive-include include *.yaml
+recursive-include include *.xml
+recursive-include include *.lock
+global-exclude *.py[cod] *.o
+
+prune build
+exclude .git
