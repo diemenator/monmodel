@@ -10,11 +10,34 @@ const renderer = new THREE.WebGLRenderer();
 renderer.setSize(width, height);
 document.body.appendChild(renderer.domElement);
 
-// Skybox
-const skyboxGeometry = new THREE.BoxGeometry(1000, 1000, 1000);
-const skyboxMaterial = new THREE.MeshBasicMaterial({ color: 0x87CEEB, side: THREE.BackSide });
-const skybox = new THREE.Mesh(skyboxGeometry, skyboxMaterial);
-scene.add(skybox);
+// Load skybox texture
+const loader = new THREE.CubeTextureLoader();
+const skyboxTexture = loader.load([
+  'path/to/skybox/px.jpg',
+  'path/to/skybox/nx.jpg',
+  'path/to/skybox/py.jpg',
+  'path/to/skybox/ny.jpg',
+  'path/to/skybox/pz.jpg',
+  'path/to/skybox/nz.jpg'
+]);
+scene.background = skyboxTexture;
+
+// Add particles
+const particleCount = 1000;
+const particles = new THREE.BufferGeometry();
+const particlePositions = new Float32Array(particleCount * 3);
+
+for (let i = 0; i < particleCount; i++) {
+  particlePositions[i * 3] = Math.random() * 1000 - 500;
+  particlePositions[i * 3 + 1] = Math.random() * 1000 - 500;
+  particlePositions[i * 3 + 2] = Math.random() * 1000 - 500;
+}
+
+particles.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+
+const particleMaterial = new THREE.PointsMaterial({ color: 0x888888 });
+const particleSystem = new THREE.Points(particles, particleMaterial);
+scene.add(particleSystem);
 
 // D3 force-directed graph setup
 const svg = d3.select("body")
@@ -206,13 +229,23 @@ function drag(simulation) {
     .on("end", dragended);
 }
 
+// Track mouse movement for camera panning
+let mouseX = 0, mouseY = 0;
+
+document.addEventListener('mousemove', (event) => {
+  mouseX = (event.clientX / window.innerWidth) * 2 - 1;
+  mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
+});
+
 // Animate and render the Three.js scene
 function animate() {
   requestAnimationFrame(animate);
-  // Subtle camera panning
-  camera.position.x = 200 * Math.sin(Date.now() * 0.0001);
-  camera.position.z = 200 * Math.cos(Date.now() * 0.0001);
+
+  // Camera panning follows the mouse
+  camera.position.x += (mouseX * 100 - camera.position.x) * 0.05;
+  camera.position.y += (mouseY * 100 - camera.position.y) * 0.05;
   camera.lookAt(scene.position);
+
   renderer.render(scene, camera);
 }
 
