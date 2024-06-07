@@ -4,13 +4,21 @@
     { "id": 1, "x": -20, "y": 20, "z": 20, "health": 80, "richContent": "<div><h2>Node 1</h2><p>Content for node 1</p></div>" },
     { "id": 2, "x": 30, "y": -30, "z": 30, "health": 70, "richContent": "<div><h2>Node 2</h2><p>Content for node 2</p></div>" },
     { "id": 3, "x": -40, "y": -40, "z": -40, "health": 60, "richContent": "<div><h2>Node 3</h2><p>Content for node 3</p></div>" },
-    { "id": 4, "x": 50, "y": 50, "z": -50, "health": 50, "richContent": "<div><h2>Node 4</h2><p>Content for node 4</p></div>" }
+    { "id": 4, "x": 50, "y": 50, "z": -50, "health": 50, "richContent": "<div><h2>Node 4</h2><p>Content for node 4</p></div>" },
+    { "id": 5, "x": 50, "y": 50, "z": -50, "health": 50, "richContent": "<div><h2>Node 4</h2><p>Content for node 4</p></div>" },
+    { "id": 6, "x": 50, "y": 50, "z": -50, "health": 50, "richContent": "<div><h2>Node 4</h2><p>Content for node 4</p></div>" },
+    { "id": 7, "x": 50, "y": 50, "z": -50, "health": 50, "richContent": "<div><h2>Node 4</h2><p>Content for node 4</p></div>" },
+    { "id": 8, "x": 50, "y": 50, "z": -50, "health": 50, "richContent": "<div><h2>Node 4</h2><p>Content for node 4</p></div>" },
+    { "id": 9, "x": 50, "y": 50, "z": -50, "health": 50, "richContent": "<div><h2>Node 4</h2><p>Content for node 4</p></div>" }
   ],
   "links": [
     { "source": 0, "target": 1, "health": 100 },
     { "source": 1, "target": 2, "health": 100 },
     { "source": 2, "target": 3, "health": 100 },
-    { "source": 3, "target": 4, "health": 100 },
-    { "source": 4, "target": 0, "health": 100 }
+    { "source": 3, "target": 1, "health": 100 },
+    { "source": 5, "target": 4, "health": 100 },
+    { "source": 6, "target": 0, "health": 100 },
+    { "source": 7, "target": 4, "health": 100 },
+    { "source": 8, "target": 0, "health": 100 }
   ]
 }
