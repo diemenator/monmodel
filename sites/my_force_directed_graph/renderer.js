@@ -76,10 +76,59 @@ const zoomOutButton = hud.append("text")
   });
 
 let mouseX = 0, mouseY = 0;
+let selectedNode = null;
+let dragging = false;
 
 document.addEventListener('mousemove', (event) => {
   mouseX = (event.clientX / window.innerWidth) * 2 - 1;
   mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
+
+  if (dragging && selectedNode) {
+    const vector = new THREE.Vector3(mouseX, mouseY, 0.5).unproject(camera);
+    const dir = vector.sub(camera.position).normalize();
+    const distance = -camera.position.z / dir.z;
+    const pos = camera.position.clone().add(dir.multiplyScalar(distance));
+    console.log('yeah');
+    selectedNode.fx = pos.x;
+    selectedNode.fy = pos.y;
+
+    selectedNode.x = pos.x;
+    selectedNode.y = pos.y;
+    // Update the Three.js mesh position
+
+    selectedNode.mesh.position.set(pos.x, pos.y, pos.z);
+    simulation.alphaTarget(0.2).restart();
+  }
+});
+
+document.addEventListener('mousedown', (event) => {
+  mouse.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1;
+  mouse.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1;
+
+  raycaster.setFromCamera(mouse, camera);
+
+  const intersects = raycaster.intersectObjects(nodes3D.map(node => node.mesh));
+
+  if (intersects.length > 0) {
+    selectedNode = nodes3D.find(node => node.mesh === intersects[0].object);
+    selectObject(selectedNode);
+    dragging = true;
+    console.log('dragging');
+    simulation.alphaTarget(0.3).restart();
+  } else {
+    selectObject(null);
+  }
+});
+
+document.addEventListener('mouseup', () => {
+  if (selectedNode) {
+    selectedNode.fx = null;
+    selectedNode.fy = null;
+    selectedNode = null;
+    dragging = false;
+    console.log('not dragging');
+    simulation.alphaTarget(0);
+  }
 });
 
 document.addEventListener('wheel', (event) => {
@@ -114,26 +163,6 @@ function selectObject(object) {
   }
 }
 
-function handleNodeSelection(event) {
-  event.preventDefault();
-
-  mouse.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1;
-  mouse.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1;
-
-  raycaster.setFromCamera(mouse, camera);
-
-  const intersects = raycaster.intersectObjects(nodes3D.map(node => node.mesh));
-
-  if (intersects.length > 0) {
-    const selectedNode = nodes3D.find(node => node.mesh === intersects[0].object);
-    selectObject(selectedNode);
-  } else {
-    selectObject(null);
-  }
-}
-
-document.addEventListener('click', handleNodeSelection, false);
-
 function arraysEqual(a, b) {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
@@ -153,6 +182,7 @@ function objectsEqual(obj1, obj2) {
 }
 
 function loadGraphData() {
+  if (dragging) return;
   const data = JSON.parse(sessionStorage.getItem('graphData'));
 
   if (!data) return;
@@ -161,13 +191,12 @@ function loadGraphData() {
   const links = data.links;
 
   let nodesChanged = false;
-  let nodesPosChanged = false;
   let linksChanged = false;
 
   // Update nodes
   nodes.forEach(newNode => {
     let existingNode = nodes3D.find(n => n.id === newNode.id);
-    if (existingNode) {
+    if (existingNode) { // Only compare IDs
       existingNode.health = newNode.health;
       existingNode.richContent = newNode.richContent;
     } else {
@@ -228,9 +257,15 @@ function loadGraphData() {
       .force("center", d3.forceCenter(0, 0))
       .on("tick", () => {
         nodes3D.forEach((node, i) => {
-          node.x = simulation.nodes()[i].x;
-          node.y = simulation.nodes()[i].y;
-          node.z = simulation.nodes()[i].z;
+            if (dragging && (selectedNode == node)) {
+              simulation.nodes()[i].x = node.x;
+              simulation.nodes()[i].y = node.y;
+              simulation.nodes()[i].z = node.z;
+            } else {
+              node.x = simulation.nodes()[i].x;
+              node.y = simulation.nodes()[i].y;
+              node.z = simulation.nodes()[i].z;
+            }
         });
         updateGraph();
       });
@@ -283,6 +318,7 @@ function updateGraph() {
     positions[5] = nodes3D[link.target].mesh.position.z;
     link.line.geometry.attributes.position.needsUpdate = true;
   });
+
 }
 
 function animate() {
