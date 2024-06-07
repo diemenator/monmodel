@@ -93,6 +93,10 @@ let nodes3D = [];
 let links3D = [];
 let simulation;
 
+const nodeGeometry = new THREE.SphereGeometry(5, 32, 32);
+const nodeMaterial = new THREE.MeshBasicMaterial({ color: 0xff6347 });
+const linkMaterial = new THREE.LineBasicMaterial({ color: 0x1e90ff });
+
 function selectObject(object) {
   if (object) {
     selectedText.text(`Selected: Node ${object.id}`);
@@ -130,6 +134,24 @@ function handleNodeSelection(event) {
 
 document.addEventListener('click', handleNodeSelection, false);
 
+function arraysEqual(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+function objectsEqual(obj1, obj2) {
+  const keys1 = Object.keys(obj1);
+  const keys2 = Object.keys(obj2);
+  if (keys1.length !== keys2.length) return false;
+  for (let key of keys1) {
+    if (obj1[key] !== obj2[key]) return false;
+  }
+  return true;
+}
+
 function loadGraphData() {
   const data = JSON.parse(sessionStorage.getItem('graphData'));
 
@@ -138,46 +160,112 @@ function loadGraphData() {
   const nodes = data.nodes;
   const links = data.links;
 
-  // Clear existing nodes and links
-  nodes3D.forEach(node => scene.remove(node.mesh));
-  links3D.forEach(link => scene.remove(link.line));
-  nodes3D = [];
-  links3D = [];
+  let nodesChanged = false;
+  let nodesPosChanged = false;
+  let linksChanged = false;
 
-  // Create 3D nodes and links
-  const nodeGeometry = new THREE.SphereGeometry(5, 32, 32);
-  const nodeMaterial = new THREE.MeshBasicMaterial({ color: 0xff6347 });
-
-  nodes3D = nodes.map(node => {
-    const mesh = new THREE.Mesh(nodeGeometry, nodeMaterial.clone());
-    mesh.position.set(node.x, node.y, node.z);
-    scene.add(mesh);
-    return { ...node, mesh };
+  // Update nodes
+  nodes.forEach(newNode => {
+    let existingNode = nodes3D.find(n => n.id === newNode.id);
+    if (existingNode) {
+      existingNode.health = newNode.health;
+      existingNode.richContent = newNode.richContent;
+    } else {
+      // Add new nodes
+      const mesh = new THREE.Mesh(nodeGeometry, nodeMaterial.clone());
+      mesh.position.set(newNode.x, newNode.y, newNode.z);
+      scene.add(mesh);
+      nodes3D.push({ ...newNode, mesh });
+      nodesChanged = true;
+    }
   });
 
-  const linkMaterial = new THREE.LineBasicMaterial({ color: 0x1e90ff });
-  links3D = links.map(link => {
-    const positions = new Float32Array(6);
-    const lineGeometry = new THREE.BufferGeometry();
-    lineGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    const line = new THREE.Line(lineGeometry, linkMaterial.clone());
-    scene.add(line);
-    return { ...link, line };
+  // Remove deleted nodes
+  nodes3D = nodes3D.filter(node => {
+    if (nodes.find(n => n.id === node.id)) {
+      return true;
+    } else {
+      scene.remove(node.mesh);
+      nodesChanged = true;
+      return false;
+    }
+  });
+
+  // Update links
+  links.forEach(newLink => {
+    let existingLink = links3D.find(l => l.source === newLink.source && l.target === newLink.target);
+    if (existingLink) {
+      existingLink.health = newLink.health;
+      existingLink.richContent = newLink.richContent;
+    } else {
+      // Add new links
+      const positions = new Float32Array(6);
+      const lineGeometry = new THREE.BufferGeometry();
+      lineGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const line = new THREE.Line(lineGeometry, linkMaterial.clone());
+      scene.add(line);
+      links3D.push({ ...newLink, line });
+      linksChanged = true;
+    }
+  });
+
+  // Remove deleted links
+  links3D = links3D.filter(link => {
+    if (links.find(l => l.source === link.source && l.target === link.target)) {
+      return true;
+    } else {
+      scene.remove(link.line);
+      linksChanged = true;
+      return false;
+    }
   });
 
   // Initialize or update the simulation
-  simulation = d3.forceSimulation(nodes)
-    .force("link", d3.forceLink(links).distance(50).strength(1))
-    .force("charge", d3.forceManyBody().strength(-300))
-    .force("center", d3.forceCenter(0, 0))
-    .on("tick", () => {
-      nodes3D.forEach((node, i) => {
-        node.x = simulation.nodes()[i].x;
-        node.y = simulation.nodes()[i].y;
-        node.z = simulation.nodes()[i].z;
+  if (!simulation) {
+    simulation = d3.forceSimulation(nodes)
+      .force("link", d3.forceLink(links).distance(50).strength(1))
+      .force("charge", d3.forceManyBody().strength(-300))
+      .force("center", d3.forceCenter(0, 0))
+      .on("tick", () => {
+        nodes3D.forEach((node, i) => {
+          node.x = simulation.nodes()[i].x;
+          node.y = simulation.nodes()[i].y;
+          node.z = simulation.nodes()[i].z;
+        });
+        updateGraph();
       });
-      updateGraph();
-    });
+  } else {
+    // Update simulation only if there are changes
+    if (nodesChanged || linksChanged) {
+      const currentNodes = simulation.nodes();
+      const currentLinks = simulation.force("link").links();
+      nodes.forEach(newNode => {
+        let existingNode = currentNodes.find(n => n.id === newNode.id);
+        if (!existingNode) {
+          currentNodes.push(newNode);
+        }
+      });
+      currentNodes.forEach(existingNode => {
+        let newNode = nodes.find(n => n.id === existingNode.id);
+        if (newNode) {
+          existingNode.health = newNode.health;
+          existingNode.richContent = newNode.richContent;
+        }
+      });
+
+      // Update links
+      links.forEach(newLink => {
+        let existingLink = currentLinks.find(l => l.source.id === newLink.source && l.target.id === newLink.target);
+        if (!existingLink) {
+          currentLinks.push(newLink);
+        }
+      });
+
+      simulation.nodes(currentNodes);
+      simulation.force("link").links(currentLinks);
+      simulation.alpha(1).restart();
+    }
+  }
 }
 
 function updateGraph() {
