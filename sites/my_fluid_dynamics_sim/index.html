@@ -3,65 +3,77 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fluid Simulation</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gpu.js/2.10.0/gpu-browser.min.js"></script>
+    <title>Three.js and Cannon.js Physics Simulation</title>
     <style>
-        canvas {
-            display: block;
-            margin: 0 auto;
-            background-color: #000;
-        }
+        body { margin: 0; }
+        canvas { display: block; }
     </style>
 </head>
 <body>
-    <canvas id="simulationCanvas" width="512" height="512"></canvas>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
     <script>
-        const canvas = document.getElementById('simulationCanvas');
-        const gpu = new GPU({ canvas: canvas, mode: 'gpu' });
+        // Set up the scene, camera, and renderer
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
 
-        // Grid size
-        const size = 512;
+        // Create a ground plane
+        const geometry = new THREE.PlaneGeometry(50, 50);
+        const material = new THREE.MeshBasicMaterial({ color: 0x888888 });
+        const ground = new THREE.Mesh(geometry, material);
+        ground.rotation.x = - Math.PI / 2;
+        scene.add(ground);
 
-        // Initialize fluid velocity field and density field
-        let velocityX = new Float32Array(size * size).fill(0);
-        let velocityY = new Float32Array(size * size).fill(0);
-        let density = new Float32Array(size * size).fill(0);
+        // Create a box
+        const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
+        const boxMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        const box = new THREE.Mesh(boxGeometry, boxMaterial);
+        scene.add(box);
 
-        // Define GPU functions
-        const advect = gpu.createKernel(function (velX, velY) {
-            const dt = 0.1;  // Time step
-            const i = this.thread.x;
-            const j = this.thread.y;
-            const posX = i - dt * velX[i + j * this.constants.size];
-            const posY = j - dt * velY[i + j * this.constants.size];
-            const x0 = Math.floor(posX), x1 = x0 + 1;
-            const y0 = Math.floor(posY), y1 = y0 + 1;
-            if (x0 >= 0 && x1 < this.constants.size && y0 >= 0 && y1 < this.constants.size) {
-                const s1 = posX - x0, s0 = 1 - s1;
-                const t1 = posY - y0, t0 = 1 - t1;
-                return s0 * (t0 * this.constants.density[x0 + y0 * this.constants.size] + t1 * this.constants.density[x0 + y1 * this.constants.size]) +
-                       s1 * (t0 * this.constants.density[x1 + y0 * this.constants.size] + t1 * this.constants.density[x1 + y1 * this.constants.size]);
-            }
-            return 0;
-        }).setOutput([size, size]).setConstants({ size: size, density: density });
+        // Set the camera position
+        camera.position.z = 10;
+        camera.position.y = 5;
 
-        const draw = gpu.createKernel(function (density) {
-            const value = density[this.thread.x + this.thread.y * this.constants.size];
-            this.color(value, value, value, 1);
-        }).setOutput([size, size]).setGraphical(true).setConstants({ size: size });
+        // Set up the Cannon.js world
+        const world = new CANNON.World();
+        world.gravity.set(0, -9.82, 0); // Set gravity
 
-        function step() {
-            // Advection step
-            density = advect(velocityX, velocityY);
+        // Create a ground plane in Cannon.js
+        const groundBody = new CANNON.Body({
+            mass: 0 // Mass of 0 makes the body static
+        });
+        const groundShape = new CANNON.Plane();
+        groundBody.addShape(groundShape);
+        groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+        world.addBody(groundBody);
 
-            // Drawing step
-            draw(density);
+        // Create a box in Cannon.js
+        const boxBody = new CANNON.Body({
+            mass: 1 // kg
+        });
+        const boxShape = new CANNON.Box(new CANNON.Vec3(0.5, 0.5, 0.5));
+        boxBody.addShape(boxShape);
+        boxBody.position.set(0, 5, 0); // Initial position
+        world.addBody(boxBody);
 
-            requestAnimationFrame(step);
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Step the physics world
+            world.step(1 / 60);
+
+            // Copy coordinates from Cannon.js to Three.js
+            box.position.copy(boxBody.position);
+            box.quaternion.copy(boxBody.quaternion);
+
+            renderer.render(scene, camera);
         }
 
-        // Start the simulation
-        step();
+        animate();
     </script>
 </body>
 </html>
