@@ -305,3 +305,316 @@ sequenceDiagram
     MainProcess ->> SharedMemory: Application exits, atexit cleanup runs
     SharedMemory -->> MainProcess: Clean up shared memory buffers
 ```
+
+### shared ldap stuff
+
+```python
+import attrs
+from typing import Dict, List, Any, Type
+from shared_instance import AbstractStorage, Instance  # Assuming shared_instance.py is the file containing the provided code.
+
+@attrs.define
+class LdapData:
+    dns_to_user_ids: Dict[str, List[str]]
+
+    def as_dict(self) -> Dict[str, Any]:
+        return attrs.asdict(self)
+
+    @classmethod
+    def from_dict(cls: Type['LdapData'], data: Dict[str, Any]) -> 'LdapData':
+        return cls(**data)
+
+class OurLdapStorage(AbstractStorage[LdapData]):
+    pass
+
+# Singleton instance for OurLdapStorage
+Instance: OurLdapStorage = OurLdapStorage("ldap_storage")
+```
+
+### configuration
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
+
+  <!-- Root element -->
+  <xs:element name="ldapConfig">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="ldapServer" maxOccurs="unbounded">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="uri" type="xs:string"/>
+              <xs:element name="login" type="xs:string"/>
+              <xs:element name="password" type="xs:string"/>
+              <xs:element name="dnList">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="dn" type="xs:string" maxOccurs="unbounded"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+</xs:schema>
+```
+
+
+```python
+import attrs
+from typing import List, Optional
+import xml.etree.ElementTree as ET
+from ldap3 import Server, Connection, ALL, NTLM, SUBTREE, Tls
+import ssl
+
+@attrs.define(frozen=True)
+class LdapServer:
+    uri: str
+    login: str
+    password: str
+    dn_list: List[str]
+
+@attrs.define(frozen=True)
+class LdapConfig:
+    ldap_servers: List[LdapServer]
+
+    @classmethod
+    def from_xml(cls, xml_string: str) -> 'LdapConfig':
+        root = ET.fromstring(xml_string)
+        
+        ldap_servers = []
+        
+        for server_elem in root.findall('ldapServer'):
+            uri = server_elem.find('uri').text
+            login = server_elem.find('login').text
+            password = server_elem.find('password').text
+            
+            dn_list_elem = server_elem.find('dnList')
+            dn_list = [dn.text for dn in dn_list_elem.findall('dn')]
+            
+            ldap_server = LdapServer(uri=uri, login=login, password=password, dn_list=dn_list)
+            ldap_servers.append(ldap_server)
+        
+        return cls(ldap_servers=ldap_servers)
+
+def authenticate_and_fetch_oid(ldap_config: LdapConfig, ldap_server_uri: str, username: str, password: str) -> Optional[str]:
+    timeout = 10  # 10 seconds timeout for session opening and binding
+    
+    # Find the LDAP server configuration
+    ldap_server_config = next((server for server in ldap_config.ldap_servers if server.uri == ldap_server_uri), None)
+    if not ldap_server_config:
+        return None
+    
+    # Initialize the LDAP server connection
+    server = Server(ldap_server_uri, get_info=ALL, connect_timeout=timeout)
+    
+    try:
+        # Establish connection
+        conn = Connection(server, user=username, password=password, auto_bind=True, read_only=True, receive_timeout=timeout)
+        
+        # Search for the user in the specified DN lists
+        for dn in ldap_server_config.dn_list:
+            conn.search(search_base=dn,
+                        search_filter=f'(&(objectClass=person)(sAMAccountName={username}))',
+                        search_scope=SUBTREE,
+                        attributes=['objectGUID'])
+            
+            if conn.entries:
+                user_entry = conn.entries[0]
+                user_oid = user_entry.objectGUID.value  # Assuming objectGUID is the OID attribute
+                return user_oid
+    
+    except Exception as e:
+        # Log the exception if needed
+        print(f'Exception occurred: {e}')
+        return None
+    finally:
+        if conn:
+            conn.unbind()
+
+    return None 
+
+```
+
+
+```
+def authenticate_and_fetch_oid(ldap_config: LdapConfig, ldap_server_uri: str, username: str, password: str) -> Optional[str]:
+    timeout = 10  # 10 seconds timeout for session opening and binding
+    
+    # Find the LDAP server configuration
+    ldap_server_config = next((server for server in ldap_config.ldap_servers if server.uri == ldap_server_uri), None)
+    if not ldap_server_config:
+        return None
+    
+    # Initialize the LDAP server connection
+    server = Server(ldap_server_uri, get_info=ALL, connect_timeout=timeout)
+    
+    try:
+        # Establish connection
+        conn = Connection(server, user=username, password=password, auto_bind=True, read_only=True, receive_timeout=timeout)
+        
+        # Search for the user in the specified DN lists
+        for dn in ldap_server_config.dn_list:
+            conn.search(search_base=dn,
+                        search_filter=f'(&(objectClass=person)(sAMAccountName={username}))',
+                        search_scope=SUBTREE,
+                        attributes=['objectGUID'])
+            
+            if conn.entries:
+                user_entry = conn.entries[0]
+                user_oid = user_entry.objectGUID.value  # Assuming objectGUID is the OID attribute
+                return user_oid
+    
+    except Exception as e:
+        # Log the exception if needed
+        print(f'Exception occurred: {e}')
+        return None
+    finally:
+        if conn:
+            conn.unbind()
+
+    return None
+
+async def ldap_data_reader() -> LdapData:
+    await asyncio.sleep(0)  # Simulate an async read operation
+    return Instance.read()
+
+async def launch(server_config: LdapConfig):
+    loop = asyncio.get_event_loop()
+    executor = ProcessPoolExecutor()
+
+    async def runner():        
+        loop.run_in_executor(executor, LdapWorker.query_ldap_oids, server_config, 'ldap://example.com', 'jdoe', 'password123'),
+        # ...
+        
+
+    return runner, ldap_data_reader
+```
+
+### 
+```plantuml
+
+@startuml
+
+control "asgi/wsgi" as web
+storage shmem
+control sub_proc_pool_executor
+control updater
+  
+
+updater ==> shmem: "group membership"
+updater --> ldap: query
+ldap ==> updater: data
+web --> sub_proc_pool_executor: async read
+sub_proc_pool_executor --> shmem: read
+shmem ==> sub_proc_pool_executor: data
+sub_proc_pool_executor ==> web: data
+
+@enduml
+```
+
+```python
+
+import uvicorn
+from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jose import JWTError, jwt
+from datetime import datetime, timedelta
+from typing import List, Optional
+import asyncio
+
+from ldap_async import ldap_data_reader, authenticate_and_fetch_oid_async
+from ldap_authentication import LdapConfig, Instance
+
+# Secret key to encode the JWT token
+SECRET_KEY = "your_secret_key"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+# OAuth2 password bearer token
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+app = FastAPI()
+
+# Sample LDAP configuration, replace this with actual config or read from a secure source
+xml_data = """
+<ldapConfig>
+  <ldapServer>
+    <uri>ldap://example.com</uri>
+    <login>admin</login>
+    <password>secret</password>
+    <dnList>
+      <dn>cn=users,dc=example,dc=com</dn>
+      <dn>cn=admins,dc=example,dc=com</dn>
+    </dnList>
+  </ldapServer>
+</ldapConfig>
+"""
+ldap_config = LdapConfig.from_xml(xml_data)
+
+# Function to create JWT token
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+# Dependency to get current user from token
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    return payload
+
+# OAuth2 token endpoint
+@app.post("/token", response_model=dict)
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    user_oid = await authenticate_and_fetch_oid_async(
+        ldap_config, 'ldap://example.com', form_data.username, form_data.password
+    )
+    if not user_oid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Get LDAP data for claims
+    ldap_data = await ldap_data_reader()
+    user_dns = [dn for dn, user_ids in ldap_data.dns_to_user_ids.items() if user_oid in user_ids]
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": form_data.username, "dns": user_dns}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+# Protected endpoint
+@app.get("/users/me", response_model=dict)
+async def read_users_me(current_user: dict = Depends(get_current_user)):
+    return current_user
+
+# Start the app
+if __name__ == "__main__":
+    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
+
+
+```
