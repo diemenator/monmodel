@@ -24,8 +24,6 @@ sequenceDiagram
     Note right of Client: Client accesses the resources on behalf of the user.
 ```
 
-```mermaid
-
 ### oauh2
 
 ```mermaid
@@ -52,3 +50,20 @@ sequenceDiagram
 
     Note right of Client: Client accesses the resources on behalf of the user.
 ```
+
+### ldap worker
+```mermaid
+sequenceDiagram
+    participant Worker
+    participant LDAP as LDAP Server
+
+    Note right of Worker: Worker queries for a list of preconfigured LDAP OIDs for a select list of group DNs.
+
+    Worker ->> LDAP: Connect using JDBC-like LDAP URL with login and escaped password
+    Worker ->> LDAP: Query for LDAP OIDs of group DNs
+    LDAP -->> Worker: Returns list of LDAP OIDs
+
+    Note right of Worker: Worker processes the returned LDAP OIDs.
+
+```
+
