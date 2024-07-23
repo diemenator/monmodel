@@ -271,10 +271,7 @@ if __name__ == '__main__':
         return Instance.read() 
     print(retrieved_data)
 
-    print(f'Last updated timestamp: {Instance.get_updated_ts()}')
-
-
-
+    print(f'Last updated timestamp: {Instance.get_updated_ts()}') 
 ```
 
 ```mermaid
@@ -438,11 +435,7 @@ def authenticate_and_fetch_oid(ldap_config: LdapConfig, ldap_server_uri: str, us
             conn.unbind()
 
     return None 
-
-```
-
-
-```
+ 
 def authenticate_and_fetch_oid(ldap_config: LdapConfig, ldap_server_uri: str, username: str, password: str) -> Optional[str]:
     timeout = 10  # 10 seconds timeout for session opening and binding
     
@@ -496,7 +489,8 @@ async def launch(server_config: LdapConfig):
     return runner, ldap_data_reader
 ```
 
-### 
+### app processes and tasks
+
 ```plantuml
 
 @startuml
@@ -518,46 +512,42 @@ sub_proc_pool_executor ==> web: data
 @enduml
 ```
 
-```python
+### oath2 impl
 
-import uvicorn
-from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+```pythonfrom fastapi import FastAPI, Request, HTTPException, status
 from jose import JWTError, jwt
-from datetime import datetime, timedelta
-from typing import List, Optional
-import asyncio
-
-from ldap_async import ldap_data_reader, authenticate_and_fetch_oid_async
-from ldap_authentication import LdapConfig, Instance
-
-# Secret key to encode the JWT token
-SECRET_KEY = "your_secret_key"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
-# OAuth2 password bearer token
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+from typing import List
 
 app = FastAPI()
 
-# Sample LDAP configuration, replace this with actual config or read from a secure source
-xml_data = """
-<ldapConfig>
-  <ldapServer>
-    <uri>ldap://example.com</uri>
-    <login>admin</login>
-    <password>secret</password>
-    <dnList>
-      <dn>cn=users,dc=example,dc=com</dn>
-      <dn>cn=admins,dc=example,dc=com</dn>
-    </dnList>
-  </ldapServer>
-</ldapConfig>
-"""
-ldap_config = LdapConfig.from_xml(xml_data)
+SECRET_KEY = "your_secret_key"
+ALGORITHM = "HS256"
 
-# Function to create JWT token
+@app.get("/auth/validate")
+async def validate_token(request: Request):
+    token = request.headers.get("Authorization")
+    if not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authorization header missing")
+    
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        group_dns: List[str] = payload.get("dns", [])
+        oids: List[str] = payload.get("oids", [])
+        if username is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    except JWTError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    
+    headers = {
+        "X-Authenticated-User": username,
+        "X-Authenticated-Group-DNs": ",".join(group_dns),
+        "X-Authenticated-OIDs": ",".join(oids)
+    }
+
+    return headers
+
+# You might want to modify the token generation to include the necessary information
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     if expires_delta:
@@ -568,23 +558,6 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-# Dependency to get current user from token
-async def get_current_user(token: str = Depends(oauth2_scheme)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
-            raise credentials_exception
-    except JWTError:
-        raise credentials_exception
-    return payload
-
-# OAuth2 token endpoint
 @app.post("/token", response_model=dict)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
     user_oid = await authenticate_and_fetch_oid_async(
@@ -597,24 +570,73 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Get LDAP data for claims
     ldap_data = await ldap_data_reader()
     user_dns = [dn for dn, user_ids in ldap_data.dns_to_user_ids.items() if user_oid in user_ids]
     
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": form_data.username, "dns": user_dns}, expires_delta=access_token_expires
+        data={"sub": form_data.username, "dns": user_dns, "oids": [user_oid]}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-# Protected endpoint
-@app.get("/users/me", response_model=dict)
-async def read_users_me(current_user: dict = Depends(get_current_user)):
-    return current_user
 
-# Start the app
-if __name__ == "__main__":
-    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
+```
+
+### nginx conf demo, it should protect a site downstream by using existing oath2 base url (assuming the app we implemented) as security provider.
+
+
+```conf
+
+# nginx.conf
+
+server {
+    listen 80;
+    server_name your_domain.com;
+
+    location / {
+        auth_request /auth;
+        error_page 401 = @error401;
+
+        # Protect the downstream site
+        proxy_pass http://downstream_site;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Pass additional headers
+        auth_request_set $auth_user $upstream_http_x_authenticated_user;
+        auth_request_set $auth_group_dns $upstream_http_x_authenticated_group_dns;
+        auth_request_set $auth_oids $upstream_http_x_authenticated_oids;
+        
+        proxy_set_header X-Authenticated-User $auth_user;
+        proxy_set_header X-Authenticated-Group-DNs $auth_group_dns;
+        proxy_set_header X-Authenticated-OIDs $auth_oids;
+    }
+
+    location = /auth {
+        internal;
+        proxy_pass http://localhost:8000/auth/validate;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+        proxy_set_header X-Original-URI $request_uri;
+        proxy_set_header Authorization $http_authorization;
+        proxy_set_header X-Access-Token $http_authorization;
+        proxy_set_header Content-Type "application/json";
+    }
+
+    location @error401 {
+        return 302 https://your_oauth_provider_url/authorize?client_id=your_client_id&response_type=code&redirect_uri=https://your_domain.com/callback&scope=openid;
+    }
+
+    location /callback {
+        proxy_pass http://localhost:8000/callback;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
 
 
 ```
