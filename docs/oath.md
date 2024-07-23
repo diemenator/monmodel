@@ -296,7 +296,7 @@ sequenceDiagram
 
     NamedWorker ->> MainProcess: Return updated timestamp or error
 
-    MainProcess ->> SharedMemory: Read data with TTL cache
+    MainProcess ->> SharedMemory: Read data
     SharedMemory -->> MainProcess: Provide latest data
 
     MainProcess ->> NamedWorker: Terminate named worker
