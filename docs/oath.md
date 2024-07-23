@@ -28,7 +28,8 @@ sequenceDiagram
 
 ### oauh2
 
-```sequenceDiagram
+```mermaid
+sequenceDiagram
     participant User
     participant Client
     participant AS as Authorization Server
