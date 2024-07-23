@@ -514,7 +514,8 @@ sub_proc_pool_executor ==> web: data
 
 ### oath2 impl
 
-```pythonfrom fastapi import FastAPI, Request, HTTPException, status
+```python
+from fastapi import FastAPI, Request, HTTPException, status
 from jose import JWTError, jwt
 from typing import List
 
