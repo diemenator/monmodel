@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<!-- saved from url=(0041)file:///C:/Users/dmnt0r/Desktop/demo.html -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browser-hosted AI Video Processing Demo</title>
+    <style>
+        body { margin: 0; }
+        video { width: 640px; height: 480px; position: absolute; top: 0; left: 0; } /* Show video normally */
+        svg { position: absolute; top: 0; left: 0; pointer-events: none; } /* Overlay SVG on video */
+    </style>
+    <script src="./tfjs.js"></script>
+    <script src="./tfjs-backend-webgpu.js"></script>
+    <script src="./coco-ssd.js"></script>
+    <script src="./d3.v7.min.js"></script>
+</head>
+<body>
+    <video id="video" autoplay="" playsinline=""></video>
+    <svg id="svg" width="640" height="480"><rect x="24.753894805908203" y="72.55539894104004" width="542.3883628845215" height="406.32287979125977" fill="none" stroke="red" stroke-width="2"></rect><text x="24.753894805908203" y="67.55539894104004" fill="red">person (73%)</text></svg>
+    
+    <script>
+        const video = document.getElementById('video');
+        const svg = d3.select("#svg");
+        let model;
+
+        // Initialize camera
+        async function initCamera() {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+            await video.play();
+            model = await loadModel();
+            detectFrame();
+        }
+
+        // Load the COCO-SSD model
+        async function loadModel() {
+            await tf.setBackend('webgpu'); // Use WebGPU for model inference
+            return await cocoSsd.load(); // Load the COCO-SSD model
+        }
+
+        // Detect objects in the video frame
+        async function detectFrame() {
+            // Create a canvas to draw the video frame
+            const canvas = document.createElement('canvas');
+            canvas.width = 640;
+            canvas.height = 480;
+            const context = canvas.getContext('2d');
+
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imgTensor = tf.browser.fromPixels(canvas);
+
+            // Make predictions
+            const predictions = await model.detect(imgTensor);
+
+            // Clear previous SVG elements
+            svg.selectAll("*").remove();
+
+            // Draw bounding boxes and labels on SVG
+            predictions.forEach(prediction => {
+                const [x, y, width, height] = prediction.bbox;
+
+                // Create rectangle for the bounding box
+                svg.append("rect")
+                    .attr("x", x)
+                    .attr("y", y)
+                    .attr("width", width)
+                    .attr("height", height)
+                    .attr("fill", "none")
+                    .attr("stroke", "red")
+                    .attr("stroke-width", 2)
+                    .on("mouseover", function() {
+                        d3.select(this)
+                          .attr("stroke", "yellow")
+                          .attr("stroke-width", 3);
+                    })
+                    .on("mouseout", function() {
+                        d3.select(this)
+                          .attr("stroke", "red")
+                          .attr("stroke-width", 2);
+                    });
+
+                // Create label for the detected object
+                svg.append("text")
+                    .attr("x", x)
+                    .attr("y", y > 10 ? y - 5 : 10) // Adjust label position
+                    .attr("fill", "red")
+                    .text(`${prediction.class} (${Math.round(prediction.score * 100)}%)`);
+            });
+
+            imgTensor.dispose(); // Clean up tensor
+            requestAnimationFrame(detectFrame); // Request next frame
+        }
+
+        async function main() {
+            await initCamera();
+        }
+
+        main();
+    </script>
+
+
+</body></html>
