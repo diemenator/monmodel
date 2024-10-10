@@ -6,28 +6,19 @@
   <title>2.5D Tower Builder</title>
   <style>
     body, html { margin: 0; padding: 0; height: 100%; display: flex; }
-    #gameCanvas { flex: 3; background: #000; }
-    #wordPanel { flex: 1; background: #222; color: white; padding: 10px; }
-    .word { cursor: pointer; padding: 5px; margin: 5px; background: #333; }
-    .word:hover { background: #444; }
+    #gameCanvas { width: 100%; height: 100%; background: #000; display: block; }
   </style>
 </head>
 <body>
   <div id="gameCanvas"></div>
-  <div id="wordPanel">
-    <div class="word">Block 1</div>
-    <div class="word">Block 2</div>
-    <div class="word">Block 3</div>
-    <div class="word">Block 4</div>
-    <!-- Add as many blocks as you like -->
-  </div>
 
   <script src="./three.min.js"></script>
   <script src="./ammo.js"></script>
 
   <script>
     let scene, camera, renderer, physicsWorld, rigidBodies = [];
-    let tmpTrans = new Ammo.btTransform();
+    let tmpTrans, dragBlock = null, selectedBlock = null;
+    const draggableBlocks = [];
 
     function initPhysics() {
       let collisionConfig = new Ammo.btDefaultCollisionConfiguration(),
@@ -36,6 +27,8 @@
           solver = new Ammo.btSequentialImpulseConstraintSolver();
       physicsWorld = new Ammo.btDiscreteDynamicsWorld(dispatcher, broadphase, solver, collisionConfig);
       physicsWorld.setGravity(new Ammo.btVector3(0, -9.82, 0));
+
+      tmpTrans = new Ammo.btTransform();  // Correct initialization
     }
 
     function initGraphics() {
@@ -50,9 +43,11 @@
       light.position.set(10, 10, 10);
       scene.add(light);
 
-      // Ground
+      // Ground with physics
       let ground = createBlock(100, 1, 100, 0, -0.5, 0, {color: 0x00ff00}, false);
       scene.add(ground);
+
+      createBlockPanel();  // Create draggable block panel in the scene
     }
 
     function createBlock(w, h, d, x, y, z, materialProps, isDynamic) {
@@ -63,11 +58,23 @@
       if (isDynamic) {
         let mass = w * h * d * 0.01;
         let shape = new Ammo.btBoxShape(new Ammo.btVector3(w / 2, h / 2, d / 2));
-        let motionState = new Ammo.btDefaultMotionState(new Ammo.btTransform());
+        let transform = new Ammo.btTransform();
+        transform.setIdentity();
+        transform.setOrigin(new Ammo.btVector3(x, y, z));
+        let motionState = new Ammo.btDefaultMotionState(transform);
         let rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, motionState, shape, new Ammo.btVector3(0, 0, 0));
         let body = new Ammo.btRigidBody(rbInfo);
         physicsWorld.addRigidBody(body);
         rigidBodies.push({ mesh: block, body: body });
+      } else {
+        let shape = new Ammo.btBoxShape(new Ammo.btVector3(w / 2, h / 2, d / 2));
+        let transform = new Ammo.btTransform();
+        transform.setIdentity();
+        transform.setOrigin(new Ammo.btVector3(x, y, z));
+        let motionState = new Ammo.btDefaultMotionState(transform);
+        let rbInfo = new Ammo.btRigidBodyConstructionInfo(0, motionState, shape, new Ammo.btVector3(0, 0, 0));  // Static body (mass=0)
+        let body = new Ammo.btRigidBody(rbInfo);
+        physicsWorld.addRigidBody(body);
       }
       return block;
     }
@@ -81,9 +88,62 @@
       return types[Math.floor(Math.random() * types.length)];
     }
 
-    function onDragBlock(x, y) {
-      let block = createBlock(2, 2, 2, x, y, 0, randomMaterial(), true);
-      scene.add(block);
+    function createBlockPanel() {
+      // Create draggable blocks on a panel inside the 3D scene.
+      const blockPanelY = 5;
+      const blockPanelZ = -15;
+      for (let i = 0; i < 4; i++) {
+        let block = createBlock(2, 2, 2, i * 4 - 6, blockPanelY, blockPanelZ, randomMaterial(), false);
+        block.userData.draggable = true;
+        block.userData.startX = block.position.x;
+        block.userData.startY = block.position.y;
+        block.userData.startZ = block.position.z;
+        scene.add(block);
+        draggableBlocks.push(block);
+      }
+    }
+
+    function onMouseDown(event) {
+      let mouse = new THREE.Vector2();
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      let raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(mouse, camera);
+
+      let intersects = raycaster.intersectObjects(draggableBlocks);
+      if (intersects.length > 0) {
+        selectedBlock = intersects[0].object;
+      }
+    }
+
+    function onMouseMove(event) {
+      if (selectedBlock) {
+        let mouse = new THREE.Vector2();
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+        let raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(mouse, camera);
+
+        // Intersecting along the X and Y axis
+        let plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0); // Z axis is fixed
+        let intersectPoint = new THREE.Vector3();
+        raycaster.ray.intersectPlane(plane, intersectPoint);
+
+        // Update position along X and Y, keep Z fixed
+        selectedBlock.position.set(intersectPoint.x, intersectPoint.y, selectedBlock.userData.startZ);
+      }
+    }
+
+    function onMouseUp(event) {
+      if (selectedBlock) {
+        // Create a dynamic block at the drop position
+        let block = createBlock(2, 2, 2, selectedBlock.position.x, selectedBlock.position.y, selectedBlock.position.z, randomMaterial(), true);
+        scene.add(block);
+        selectedBlock.position.set(selectedBlock.userData.startX, selectedBlock.userData.startY, selectedBlock.userData.startZ);  // Reset position
+        selectedBlock = null;
+      }
     }
 
     function animate() {
@@ -110,9 +170,9 @@
       camera.updateProjectionMatrix();
     });
 
-    document.querySelectorAll('.word').forEach(item => {
-      item.addEventListener('click', () => onDragBlock(Math.random() * 4 - 2, 20));
-    });
+    window.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
 
     Ammo().then(() => {
       initPhysics();
@@ -122,3 +182,4 @@
   </script>
 </body>
 </html>
+``
