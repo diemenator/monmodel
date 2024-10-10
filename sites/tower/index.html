@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2.5D Tower Builder</title>
+  <style>
+    body, html { margin: 0; padding: 0; height: 100%; display: flex; }
+    #gameCanvas { flex: 3; background: #000; }
+    #wordPanel { flex: 1; background: #222; color: white; padding: 10px; }
+    .word { cursor: pointer; padding: 5px; margin: 5px; background: #333; }
+    .word:hover { background: #444; }
+  </style>
+</head>
+<body>
+  <div id="gameCanvas"></div>
+  <div id="wordPanel">
+    <div class="word">Block 1</div>
+    <div class="word">Block 2</div>
+    <div class="word">Block 3</div>
+    <div class="word">Block 4</div>
+    <!-- Add as many blocks as you like -->
+  </div>
+
+  <script src="./three.min.js"></script>
+  <script src="./ammo.js"></script>
+
+  <script>
+    let scene, camera, renderer, physicsWorld, rigidBodies = [];
+    let tmpTrans = new Ammo.btTransform();
+
+    function initPhysics() {
+      let collisionConfig = new Ammo.btDefaultCollisionConfiguration(),
+          dispatcher = new Ammo.btCollisionDispatcher(collisionConfig),
+          broadphase = new Ammo.btDbvtBroadphase(),
+          solver = new Ammo.btSequentialImpulseConstraintSolver();
+      physicsWorld = new Ammo.btDiscreteDynamicsWorld(dispatcher, broadphase, solver, collisionConfig);
+      physicsWorld.setGravity(new Ammo.btVector3(0, -9.82, 0));
+    }
+
+    function initGraphics() {
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.set(0, 20, 40);
+      renderer = new THREE.WebGLRenderer();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.getElementById('gameCanvas').appendChild(renderer.domElement);
+
+      const light = new THREE.DirectionalLight(0xffffff, 1);
+      light.position.set(10, 10, 10);
+      scene.add(light);
+
+      // Ground
+      let ground = createBlock(100, 1, 100, 0, -0.5, 0, {color: 0x00ff00}, false);
+      scene.add(ground);
+    }
+
+    function createBlock(w, h, d, x, y, z, materialProps, isDynamic) {
+      let geometry = new THREE.BoxGeometry(w, h, d);
+      let material = new THREE.MeshPhongMaterial(materialProps);
+      let block = new THREE.Mesh(geometry, material);
+      block.position.set(x, y, z);
+      if (isDynamic) {
+        let mass = w * h * d * 0.01;
+        let shape = new Ammo.btBoxShape(new Ammo.btVector3(w / 2, h / 2, d / 2));
+        let motionState = new Ammo.btDefaultMotionState(new Ammo.btTransform());
+        let rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, motionState, shape, new Ammo.btVector3(0, 0, 0));
+        let body = new Ammo.btRigidBody(rbInfo);
+        physicsWorld.addRigidBody(body);
+        rigidBodies.push({ mesh: block, body: body });
+      }
+      return block;
+    }
+
+    function randomMaterial() {
+      let types = [
+        { color: 0xff0000, shininess: 10, name: "Jelly" },
+        { color: 0x0000ff, shininess: 0, name: "Matte Plastic" },
+        { color: 0xffff00, shininess: 100, name: "Polished Metal" }
+      ];
+      return types[Math.floor(Math.random() * types.length)];
+    }
+
+    function onDragBlock(x, y) {
+      let block = createBlock(2, 2, 2, x, y, 0, randomMaterial(), true);
+      scene.add(block);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      let deltaTime = 1 / 60;
+      physicsWorld.stepSimulation(deltaTime, 10);
+      for (let i = 0; i < rigidBodies.length; i++) {
+        let obj = rigidBodies[i];
+        let motionState = obj.body.getMotionState();
+        if (motionState) {
+          motionState.getWorldTransform(tmpTrans);
+          let pos = tmpTrans.getOrigin();
+          let quat = tmpTrans.getRotation();
+          obj.mesh.position.set(pos.x(), pos.y(), pos.z());
+          obj.mesh.quaternion.set(quat.x(), quat.y(), quat.z(), quat.w());
+        }
+      }
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+
+    document.querySelectorAll('.word').forEach(item => {
+      item.addEventListener('click', () => onDragBlock(Math.random() * 4 - 2, 20));
+    });
+
+    Ammo().then(() => {
+      initPhysics();
+      initGraphics();
+      animate();
+    });
+  </script>
+</body>
+</html>

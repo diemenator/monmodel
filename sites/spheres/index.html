@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>THREE.js + Ammo.js Waterfall</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            font-family: sans-serif;
+        }
+
+        /* Flexbox layout */
+        #scene-container {
+            flex: 2;
+            background-color: #000; /* Black background for scene */
+        }
+
+        /* Bottom controls styling */
+        #controls {
+            flex: 1;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 10px;
+            background-color: #f4f4f4;
+        }
+
+        label {
+            margin-right: 10px;
+        }
+
+        input[type="range"] {
+            width: 150px;
+        }
+
+    </style>
+</head>
+<body>
+<!-- Top: Scene Container -->
+<div id="scene-container"></div>
+<!-- Bottom: Controls -->
+<div id="controls">
+    <label for="sizeSlider">Size</label>
+    <input id="sizeSlider" type="range" min="1" max="100" value="5">
+
+    <label for="frequencySlider">Frequency</label>
+    <input id="frequencySlider" type="range" min="1" max="20" value="10">
+
+    <label for="bouncinessSlider">Bounciness</label>
+    <input id="bouncinessSlider" type="range" min="0" max="1" step="0.1" value="0.5">
+</div>
+<!-- JS Libraries -->
+<script src="./three.min.js"></script>
+<script src="./ammo.js"></script>
+</body>
+
+<script>
+
+    let scene, camera, renderer, physicsWorld, rigidBodies = [];
+    let clock = new THREE.Clock();
+    let sphereParams = {size: 5, frequency: 10, bounciness: 0.5};
+    // Initialize Ammo.js Physics
+    Ammo().then(() => {
+        initPhysics();
+        initThreeJS();
+        animate();
+    });
+
+    function initPhysics() {
+        let collisionConfig = new Ammo.btDefaultCollisionConfiguration();
+        let dispatcher = new Ammo.btCollisionDispatcher(collisionConfig);
+        let broadphase = new Ammo.btDbvtBroadphase();
+        let solver = new Ammo.btSequentialImpulseConstraintSolver();
+        physicsWorld = new Ammo.btDiscreteDynamicsWorld(dispatcher, broadphase, solver, collisionConfig);
+        physicsWorld.setGravity(new Ammo.btVector3(0, -9.8, 0));
+    }
+
+    function initThreeJS() {
+        // Scene, Camera, Renderer
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 10, 30);
+
+        renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('scene-container').appendChild(renderer.domElement);
+        // Lighting
+        let ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+        let directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(10, 20, 10);
+        scene.add(directionalLight);
+        // Create the ground plane
+        createGroundPlane();
+        // Setup sliders for real-time updates
+        document.getElementById('sizeSlider').addEventListener('input', (e) => {
+            sphereParams.size = parseFloat(e.target.value);
+        });
+        document.getElementById('frequencySlider').addEventListener('input', (e) => {
+            sphereParams.frequency = parseInt(e.target.value);
+        });
+        document.getElementById('bouncinessSlider').addEventListener('input', (e) => {
+            sphereParams.bounciness = parseFloat(e.target.value);
+        });
+        // Create spheres at set intervals
+        setInterval(createSphere, 1000 / sphereParams.frequency);
+    }
+
+    function createGroundPlane() {
+        // Create THREE.js ground mesh
+        let groundGeo = new THREE.PlaneGeometry(100, 100);
+        let groundMat = new THREE.MeshStandardMaterial({color: 0x999999});
+        let ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        scene.add(ground);
+        // Ammo.js physics for ground
+        let shape = new Ammo.btBoxShape(new Ammo.btVector3(50, 0.1, 50));
+        let transform = new Ammo.btTransform();
+        transform.setIdentity();
+        let motionState = new Ammo.btDefaultMotionState(transform);
+        let rbInfo = new Ammo.btRigidBodyConstructionInfo(0, motionState, shape, new Ammo.btVector3(0, 0, 0));
+        let body = new Ammo.btRigidBody(rbInfo);
+        body.setRestitution(sphereParams.bounciness);
+        physicsWorld.addRigidBody(body);
+    }
+
+    function createSphere() {
+        // Create THREE.js sphere
+        let radius = sphereParams.size / 10;
+        let sphereGeo = new THREE.SphereGeometry(radius, 32, 32);
+        let sphereMat = new THREE.MeshStandardMaterial({color: Math.random() * 0xffffff});
+        let sphere = new THREE.Mesh(sphereGeo, sphereMat);
+        sphere.position.set(Math.random() * 10 - 5, 20, Math.random() * 10 - 5);
+        scene.add(sphere);
+        rigidBodies.push(sphere);
+        // Ammo.js physics for sphere
+        let shape = new Ammo.btSphereShape(radius);
+        let transform = new Ammo.btTransform();
+        transform.setIdentity();
+        transform.setOrigin(new Ammo.btVector3(sphere.position.x, sphere.position.y, sphere.position.z));
+        let motionState = new Ammo.btDefaultMotionState(transform);
+        let localInertia = new Ammo.btVector3(0, 0, 0);
+        shape.calculateLocalInertia(1, localInertia);
+        let rbInfo = new Ammo.btRigidBodyConstructionInfo(1, motionState, shape, localInertia);
+        let body = new Ammo.btRigidBody(rbInfo);
+        body.setRestitution(sphereParams.bounciness);
+        physicsWorld.addRigidBody(body);
+        sphere.userData.physicsBody = body;
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+
+        let deltaTime = clock.getDelta();
+        physicsWorld.stepSimulation(deltaTime, 10);
+        rigidBodies.forEach(sphere => {
+            let objPhysics = sphere.userData.physicsBody;
+            let motionState = objPhysics.getMotionState();
+            if (motionState) {
+                let transform = new Ammo.btTransform();
+                motionState.getWorldTransform(transform);
+                let pos = transform.getOrigin();
+                sphere.position.set(pos.x(), pos.y(), pos.z());
+                objPhysics.setRestitution(sphereParams.bounciness);
+            } else {
+                objPhysics.setRestitution(sphereParams.bounciness);
+            }
+        });
+        renderer.render(scene, camera);
+    }
+</script>
+</html>
